@@ -1,0 +1,13 @@
+.venv
+.pytest_cache
+__pycache__
+autoeq
+gpui-toolkit
+math-audio
+sofa-reader
+sotf
+symphonia-add-ons
+.*#
+.*~
+*#
+*~
