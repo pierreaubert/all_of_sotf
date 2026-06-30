@@ -1,0 +1,21 @@
+2026-06-29 19:46:35  Resuming: 2 repositories already processed
+2026-06-29 19:46:35  SKIP (already processed): autoeq
+2026-06-29 19:46:35  SKIP (already processed): gpui-toolkit
+2026-06-29 19:46:35  
+========== math-audio ==========
+2026-06-29 20:21:35  math-audio: unit_ok=True coverage_ok=False coverage=None% bench_ok=False
+2026-06-29 20:21:35  Updated matrix after processing math-audio
+2026-06-29 20:21:35  
+========== sofa-reader ==========
+2026-06-29 20:21:41  sofa-reader: unit_ok=True coverage_ok=True coverage=50.7% bench_ok=True
+2026-06-29 20:21:41  Updated matrix after processing sofa-reader
+2026-06-29 20:21:41  
+========== sotf ==========
+2026-06-29 20:35:50  sotf: unit_ok=False coverage_ok=True coverage=49.1% bench_ok=False
+2026-06-29 20:35:50  Updated matrix after processing sotf
+2026-06-29 20:35:50  
+========== symphonia-add-ons ==========
+2026-06-29 20:35:56  symphonia-add-ons: unit_ok=True coverage_ok=True coverage=43.2% bench_ok=True
+2026-06-29 20:35:56  Updated matrix after processing symphonia-add-ons
+2026-06-29 20:35:56  
+Done. Updated /Volumes/home_ext1/src_pierre/all_of_sotf/scripts/quality-matrix/scores.json and /Volumes/home_ext1/src_pierre/all_of_sotf/scripts/quality-matrix/matrix.md

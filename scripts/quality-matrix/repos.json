@@ -1,0 +1,10 @@
+{
+  "repositories": [
+    {"name": "autoeq", "path": "autoeq", "primary_language": "Rust", "is_monorepo": false},
+    {"name": "gpui-toolkit", "path": "gpui-toolkit", "primary_language": "Rust", "is_monorepo": true},
+    {"name": "math-audio", "path": "math-audio", "primary_language": "Rust", "is_monorepo": true},
+    {"name": "sofa-reader", "path": "sofa-reader", "primary_language": "Rust", "is_monorepo": false},
+    {"name": "sotf", "path": "sotf", "primary_language": "Rust", "is_monorepo": true},
+    {"name": "symphonia-add-ons", "path": "symphonia-add-ons", "primary_language": "Rust", "is_monorepo": true}
+  ]
+}
