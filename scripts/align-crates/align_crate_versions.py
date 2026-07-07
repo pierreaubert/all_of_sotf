@@ -20,20 +20,20 @@ change the effective source for at least one workspace.
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 import sys
+from functools import total_ordering
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 import tomllib
-from packaging.version import InvalidVersion, Version
 
 try:
     import tomlkit
-except ImportError as exc:  # pragma: no cover
-    raise SystemExit(
-        "tomlkit is required for --apply; install it with: pip install tomlkit"
-    ) from exc
+except ImportError:  # pragma: no cover
+    tomlkit = None
 
 ROOTS = [
     "sotf",
@@ -48,6 +48,52 @@ ROOTS = [
 # vendored forks used as [patch] sources. Their dependency versions are
 # intentionally independent of the main workspace declarations.
 IGNORED_DIR_PARTS = {"target", ".git", ".worktrees", ".evo", "3rdparties"}
+
+# These crates are coupled to platform/audio/UI behavior and should not be
+# bumped by the automatic fixer unless the caller explicitly opts in.
+DEFAULT_RISKY_PACKAGES = {"cpal", "gpui"}
+
+
+class InvalidVersion(ValueError):
+    pass
+
+
+@total_ordering
+class Version:
+    """Small SemVer-ish sorter for Cargo version requirements."""
+
+    def __init__(self, value: str):
+        self.original = value
+        base = value.split("+", 1)[0].split("-", 1)[0]
+        parts = base.split(".")
+        if not parts or not all(part.isdigit() for part in parts):
+            raise InvalidVersion(value)
+        padded = [int(part) for part in parts]
+        while len(padded) < 3:
+            padded.append(0)
+        self.major, self.minor, self.patch = padded[:3]
+        self.parts = tuple(padded)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, Version):
+            return NotImplemented
+        return self.parts < other.parts
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Version):
+            return NotImplemented
+        return self.parts == other.parts
+
+    def __str__(self) -> str:
+        return self.original
+
+
+def require_tomlkit() -> Any:
+    if tomlkit is None:
+        raise SystemExit(
+            "tomlkit is required for write operations; install it with: pip install tomlkit"
+        )
+    return tomlkit
 
 
 def find_cargo_tomls(repo_root: Path) -> list[Path]:
@@ -142,6 +188,37 @@ def version_sort_key(v: str) -> tuple[int, Version]:
         return 1, Version("0")
 
 
+def compatibility_key(version: str) -> tuple[int, int | None] | None:
+    """Return the SemVer compatibility group Cargo can unify safely."""
+    try:
+        parsed = normalize_version(version)
+    except InvalidVersion:
+        return None
+    if parsed.major == 0:
+        return (0, parsed.minor)
+    return (parsed.major, None)
+
+
+def is_risky_package(pkg: str, risky_packages: set[str]) -> bool:
+    return pkg in risky_packages or any(pkg.startswith(f"{risky}-") for risky in risky_packages)
+
+
+def group_versions_by_compatibility(
+    versions: dict[str, list[tuple[Path, str]]],
+    allow_major: bool,
+) -> list[dict[str, list[tuple[Path, str]]]]:
+    if allow_major:
+        return [versions]
+
+    groups: dict[tuple[int, int | None], dict[str, list[tuple[Path, str]]]] = defaultdict(dict)
+    for version, locations in versions.items():
+        key = compatibility_key(version)
+        if key is None:
+            continue
+        groups[key][version] = locations
+    return list(groups.values())
+
+
 def find_conflicts(
     by_package: dict[str, list[tuple[Path, str, str, str]]],
 ) -> tuple[dict[str, dict[str, list[tuple[Path, str]]]], dict[str, set[str]]]:
@@ -211,58 +288,250 @@ def report_conflicts(
 
 def build_change_map(
     conflicts: dict[str, dict[str, list[tuple[Path, str]]]],
+    risky_packages: set[str] | None = None,
+    allow_major: bool = False,
 ) -> dict[Path, dict[str, dict[str, str]]]:
     """Map file -> section -> package-name -> target-version."""
-    targets = {pkg: pick_target(versions) for pkg, versions in conflicts.items()}
+    risky_packages = risky_packages or DEFAULT_RISKY_PACKAGES
     changes: dict[Path, dict[str, dict[str, str]]] = defaultdict(
         lambda: defaultdict(dict)
     )
     for pkg, versions in conflicts.items():
-        target = targets[pkg]
-        for version, locations in versions.items():
-            if version == target:
+        if is_risky_package(pkg, risky_packages):
+            continue
+
+        for group in group_versions_by_compatibility(versions, allow_major):
+            if len(group) <= 1:
                 continue
-            for path, section in locations:
-                changes[path][section][pkg] = target
+            target = pick_target(group)
+            for version, locations in group.items():
+                if version == target:
+                    continue
+                for path, section in locations:
+                    changes[path][section][pkg] = target
     return changes
+
+
+def report_change_plan(
+    repo_root: Path,
+    conflicts: dict[str, dict[str, list[tuple[Path, str]]]],
+    skipped: dict[str, set[str]],
+    risky_packages: set[str],
+    allow_major: bool,
+) -> int:
+    """Report the exact safe changes that --apply would make."""
+    changes = build_change_map(
+        conflicts,
+        risky_packages=risky_packages,
+        allow_major=allow_major,
+    )
+    risky_skipped = sorted(
+        pkg for pkg in conflicts if is_risky_package(pkg, risky_packages)
+    )
+
+    if skipped:
+        print(f"Skipped {len(skipped)} package(s) with mixed sources:\n")
+        for pkg in sorted(skipped):
+            print(f"  {pkg}: {', '.join(sorted(skipped[pkg]))}")
+        print()
+
+    if risky_skipped:
+        print(f"Skipped {len(risky_skipped)} risky package(s):")
+        for pkg in risky_skipped:
+            print(f"  {pkg}")
+        print()
+
+    if not changes:
+        print("No safe version mismatches to fix.")
+        return 0
+
+    print(f"Planned updates in {len(changes)} Cargo.toml file(s):\n")
+    for path in sorted(changes):
+        print(path.relative_to(repo_root))
+        for section in sorted(changes[path]):
+            for pkg in sorted(changes[path][section]):
+                print(f"  {section}.{pkg} -> {changes[path][section][pkg]}")
+        print()
+
+    unsafe_major = []
+    for pkg, versions in conflicts.items():
+        if pkg in risky_skipped:
+            continue
+        groups = group_versions_by_compatibility(versions, allow_major=False)
+        if len(groups) > 1:
+            unsafe_major.append(pkg)
+    if unsafe_major and not allow_major:
+        print("Left major-version splits unchanged:")
+        for pkg in sorted(unsafe_major):
+            print(f"  {pkg}: {', '.join(sorted(conflicts[pkg], key=version_sort_key))}")
+        print()
+
+    print("Run again with --apply to rewrite these direct dependency declarations.")
+    return 1
 
 
 def align_versions(
     repo_root: Path,
     conflicts: dict[str, dict[str, list[tuple[Path, str]]]],
+    risky_packages: set[str] | None = None,
+    allow_major: bool = False,
 ) -> int:
     if not conflicts:
         print("No version mismatches to fix.")
         return 0
 
-    changes = build_change_map(conflicts)
+    changes = build_change_map(
+        conflicts,
+        risky_packages=risky_packages,
+        allow_major=allow_major,
+    )
+    if not changes:
+        print("No safe version mismatches to fix.")
+        return 0
+
+    tk = require_tomlkit()
     for path, sections in changes.items():
-        doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+        doc = tk.parse(path.read_text(encoding="utf-8"))
         for section, deps in sections.items():
-            container: tomlkit.items.Table
+            container: tk.items.Table
             if section == "workspace.dependencies":
-                ws = doc.setdefault("workspace", tomlkit.table())
-                container = ws.setdefault("dependencies", tomlkit.table())
+                ws = doc.setdefault("workspace", tk.table())
+                container = ws.setdefault("dependencies", tk.table())
             else:
-                container = doc.setdefault(section, tomlkit.table())
+                container = doc.setdefault(section, tk.table())
 
             for pkg, target in deps.items():
                 value = container.get(pkg)
                 if value is None:
                     continue
-                if isinstance(value, tomlkit.items.String):
+                if isinstance(value, tk.items.String):
                     container[pkg] = target
-                elif isinstance(value, tomlkit.items.InlineTable):
+                elif isinstance(value, tk.items.InlineTable):
                     if "version" in value:
                         value["version"] = target
                     # If the table only has `package = "..."` and no version,
                     # there is nothing to align.
                 # else: unexpected shape, leave untouched
-        path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+        path.write_text(tk.dumps(doc), encoding="utf-8")
         print(f"updated {path.relative_to(repo_root)}")
 
     print(f"\nAligned {len(conflicts)} package(s) across {len(changes)} file(s).")
     return 0
+
+
+def collect_sotf_duplicates(
+    repo_root: Path,
+) -> tuple[dict[str, set[str]], set[str]]:
+    """Run cargo metadata on the sotf workspace and return duplicate external crates.
+
+    Returns a tuple of:
+    - duplicates: {crate_name: {version, ...}} for crates resolved in more
+      than one version
+    - workspace_member_names: set of package names that are workspace members
+    """
+    sotf_manifest = repo_root / "sotf" / "Cargo.toml"
+    if not sotf_manifest.exists():
+        return {}, set()
+
+    cmd = [
+        "cargo",
+        "metadata",
+        "--format-version",
+        "1",
+        "--manifest-path",
+        str(sotf_manifest),
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"cargo metadata failed:\n{result.stderr}")
+
+    metadata = json.loads(result.stdout)
+    workspace_member_names = {
+        member.split(None, 1)[0]
+        for member in metadata.get("workspace_members", [])
+    }
+
+    versions_by_name: dict[str, set[str]] = defaultdict(set)
+    for package in metadata.get("packages", []):
+        name = package["name"]
+        version = package["version"]
+        if name in workspace_member_names:
+            continue
+        versions_by_name[name].add(version)
+
+    duplicates = {
+        name: versions
+        for name, versions in versions_by_name.items()
+        if len(versions) > 1
+    }
+    return duplicates, workspace_member_names
+
+
+ALLOWLIST_PATH = Path("align-crates") / "sotf_duplicate_allowlist.toml"
+
+
+def load_allowlist(path: Path) -> dict[str, set[str]]:
+    """Load duplicate allowlist from a TOML file.
+
+    Expected format:
+        [bitflags]
+        versions = ["1.3.2", "2.13.0"]
+    """
+    if not path.exists():
+        return {}
+    with path.open("rb") as f:
+        doc = tomllib.load(f)
+    allowlist: dict[str, set[str]] = {}
+    for name, entry in doc.items():
+        if isinstance(entry, dict) and "versions" in entry:
+            allowlist[name] = {str(v) for v in entry["versions"]}
+    return allowlist
+
+
+def save_allowlist(path: Path, duplicates: dict[str, set[str]]) -> None:
+    """Write duplicate set to allowlist TOML file, sorted for stable diffs."""
+    tk = require_tomlkit()
+    doc = tk.document()
+    for name in sorted(duplicates):
+        table = tk.table()
+        table.add("versions", sorted(duplicates[name], key=Version))
+        doc.add(name, table)
+    path.write_text(tk.dumps(doc), encoding="utf-8")
+
+
+def report_sotf_duplicates(repo_root: Path, update_allowlist: bool) -> int:
+    """Detect duplicate crate versions in sotf and report or update allowlist."""
+    duplicates, _workspace_members = collect_sotf_duplicates(repo_root)
+    allowlist_path = repo_root / ALLOWLIST_PATH
+
+    if update_allowlist:
+        save_allowlist(allowlist_path, duplicates)
+        print(f"Updated allowlist: {allowlist_path.relative_to(repo_root)}")
+        print(f"Recorded {len(duplicates)} duplicate crate(s).")
+        return 0
+
+    allowlist = load_allowlist(allowlist_path)
+    unallowed: dict[str, set[str]] = {}
+    for name, versions in duplicates.items():
+        allowed = allowlist.get(name, set())
+        if not versions.issubset(allowed):
+            unallowed[name] = versions
+
+    if not unallowed:
+        print("No unallowed duplicate crate versions in sotf.")
+        return 0
+
+    print(f"Found {len(unallowed)} duplicate crate(s) not in the allowlist:\n")
+    for name in sorted(unallowed):
+        print(f"  {name}: {', '.join(sorted(unallowed[name], key=Version))}")
+    print("\nRun with --update-sotf-allowlist to accept the current baseline.")
+    return 1
 
 
 def main() -> int:
@@ -278,15 +547,54 @@ def main() -> int:
         default=Path.cwd(),
         help="Repository root containing the six workspace directories.",
     )
+    parser.add_argument(
+        "--risky-package",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="Additional package to exclude from automatic alignment. cpal, gpui, and gpui-* are excluded by default.",
+    )
+    parser.add_argument(
+        "--allow-major",
+        action="store_true",
+        help="Allow automatic alignment across SemVer-incompatible major versions.",
+    )
+    parser.add_argument(
+        "--check-sotf-duplicates",
+        action="store_true",
+        help="Check that compiling sotf does not introduce duplicate external crate versions.",
+    )
+    parser.add_argument(
+        "--update-sotf-allowlist",
+        action="store_true",
+        help="Update the sotf duplicate allowlist from the current resolved dependency graph.",
+    )
     args = parser.parse_args()
 
+    if args.check_sotf_duplicates:
+        return report_sotf_duplicates(args.root, update_allowlist=False)
+    if args.update_sotf_allowlist:
+        return report_sotf_duplicates(args.root, update_allowlist=True)
+
+    risky_packages = DEFAULT_RISKY_PACKAGES | set(args.risky_package)
     by_package = collect_versions(args.root)
     conflicts, skipped = find_conflicts(by_package)
 
     if not args.apply:
-        return report_conflicts(conflicts, skipped)
+        return report_change_plan(
+            args.root,
+            conflicts,
+            skipped,
+            risky_packages=risky_packages,
+            allow_major=args.allow_major,
+        )
 
-    return align_versions(args.root, conflicts)
+    return align_versions(
+        args.root,
+        conflicts,
+        risky_packages=risky_packages,
+        allow_major=args.allow_major,
+    )
 
 
 if __name__ == "__main__":

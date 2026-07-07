@@ -1,0 +1,1 @@
+{"name":"adler2","vers":"2.0.1","deps":[{"name":"core","req":"^1.0.0","features":[],"optional":true,"default_features":true,"target":null,"kind":null,"package":"rustc-std-workspace-core"}],"cksum":"320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa","features":{"core":["dep:core"],"default":["std"],"rustc-dep-of-std":["core"],"std":[]},"yanked":false}

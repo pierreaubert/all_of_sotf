@@ -1,0 +1,31 @@
+# Repository Guidelines
+
+## Project Structure & Module Organization
+
+This repository aggregates six sibling Rust workspaces: `sotf/`, `autoeq/`, `math-audio/`, `gpui-toolkit/`, `sofa-reader/`, and `symphonia-add-ons/`. Each workspace owns its own `Cargo.toml`, source tree, tests, docs, and in several cases a local `AGENTS.md`; read that file before editing inside the workspace. Shared maintenance code lives under `scripts/`: `scripts/align-crates/` checks dependency alignment across the six workspaces, and `scripts/quality-matrix/` generates static quality reports from `repos.json`.
+
+## Build, Test, and Development Commands
+
+There is no root `Cargo.toml`; run Cargo from the target workspace or pass a manifest path.
+
+- `cargo test --manifest-path sotf/Cargo.toml` runs tests for the main SOTF workspace.
+- `cargo test --manifest-path autoeq/Cargo.toml` runs tests for AutoEQ; substitute other workspace paths as needed.
+- `python3 scripts/align-crates/align_crate_versions.py` reports external crate version mismatches.
+- `python3 scripts/align-crates/align_crate_versions.py --check-sotf-duplicates` checks duplicate resolved crates in `sotf`.
+- `python3 scripts/quality-matrix/collect.py` regenerates static quality scores; `execute_quality.py` runs heavier toolchain checks.
+
+## Coding Style & Naming Conventions
+
+Rust code should follow each workspace’s `rustfmt.toml` or default `rustfmt` rules. Prefer clear module names, `snake_case` functions and files, `PascalCase` types, and targeted error handling with `Result`. Python maintenance scripts use 4-space indentation, type hints where useful, and small functions with explicit paths rooted at the repository root.
+
+## Testing Guidelines
+
+Place Rust unit tests near the code they cover and integration tests under each workspace’s `tests/` directory. Python script tests use `pytest` naming such as `test_normalize_version` in `scripts/align-crates/align_crate_versions_test.py`. Run focused tests before broad checks, and mention any skipped workspace or missing toolchain in your handoff.
+
+## Commit & Pull Request Guidelines
+
+Git history is brief, so keep commits short and descriptive, for example `align crate versions` or `update quality matrix`. Pull requests should name the affected workspace or script, summarize behavior changes, link issues when applicable, and list verification commands. Include screenshots for UI-facing changes and call out generated report updates such as `matrix.md` or `scores.json`.
+
+## Agent-Specific Instructions
+
+Use TokenSave before broad code exploration. Preserve user worktree changes, especially inside the sibling workspaces, and keep root-level edits narrowly scoped.

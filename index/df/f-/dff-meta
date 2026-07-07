@@ -1,0 +1,1 @@
+{"name":"dff-meta","vers":"0.1.5","deps":[{"name":"id3","req":"^1.0.2","features":[],"optional":false,"default_features":true,"target":null,"kind":null,"package":null}],"cksum":"e0a3f3bc1ee45e53ed8182c6a06af4505c9a24ff4d3303a0d0c36d5ce46bf1ac","features":{},"yanked":false}

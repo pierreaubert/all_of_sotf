@@ -8,6 +8,10 @@ __pycache__
 /sotf
 /symphonia-add-ons
 /target
+.tokensave
+.DS_Store
+/docs/superpowers
+/index
 .*#
 .*~
 *#
