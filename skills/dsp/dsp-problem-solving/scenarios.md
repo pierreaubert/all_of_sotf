@@ -44,7 +44,7 @@
 ## Scenario C: Ambiguous mixed-domain prompt
 **Prompt:** "I sampled a continuous cosine at 8 kHz and the reconstructed signal sounds wrong."
 **Expected behavior without skill:** Agent may guess the issue without checking Nyquist criterion.
-**Expected behavior with skill:** Agent first loads `dsp-fourier-analysis` (fallback), then routes to `dsp-sampling` once it identifies aliasing/reconstruction as the issue.
+**Expected behavior with skill:** Agent loads `dsp-sampling` because the prompt explicitly mentions sampling and reconstruction (routing rule 1), then diagnoses aliasing using the Nyquist criterion.
 
 **Baseline observations:**
 - The baseline agent produced a correct answer. It identified aliasing as the likely cause and grounded the diagnosis in the Nyquist criterion.
