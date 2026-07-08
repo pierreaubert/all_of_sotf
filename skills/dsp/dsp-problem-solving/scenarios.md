@@ -12,7 +12,7 @@
   - "The pole is at z = 0.5. For a causal system, the region of convergence (ROC) is the exterior of the pole circle: |z| > 0.5"
   - "h[n] = (0.5)^n u[n]"
   - "The system is BIBO stable ... the pole of H(z) is at z = 0.5, which lies inside the unit circle"
-- It did not load a DSP skill; the baseline run was executed with the `Agent` tool using `subagent_type: "coder"` and an empty skills directory.
+- It did not load a DSP skill. The baseline run was executed by the controller via the `Agent` tool with `subagent_type: "coder"` and a plain prompt that did not reference any DSP skill. The implementer subagent did not have access to the `Agent` tool and initially used the Kimi CLI instead.
 - Full output: [`baseline-outputs/scenario-A.md`](baseline-outputs/scenario-A.md)
 
 ## Scenario B: Continuous-time Fourier problem
@@ -26,7 +26,7 @@
   - "F[e^{-at}u(t)] = 1/(a + jω)"
   - "the output in the frequency domain is: Y(jω) = H(jω)X(jω) = H(jω)/(a + jω)"
   - "The problem statement does not specify the LTI system ... Without that, we can only give the general expression"
-- It did not load a DSP skill; the baseline run was executed with the `Agent` tool using `subagent_type: "coder"` and an empty skills directory.
+- It did not load a DSP skill. The baseline run was executed by the controller via the `Agent` tool with `subagent_type: "coder"` and a plain prompt that did not reference any DSP skill. The implementer subagent did not have access to the `Agent` tool and initially used the Kimi CLI instead.
 - Full output: [`baseline-outputs/scenario-B.md`](baseline-outputs/scenario-B.md)
 
 ## Scenario C: Ambiguous mixed-domain prompt
@@ -41,5 +41,5 @@
   - "f_N = f_s/2 = 8000/2 = 4000 Hz"
   - "The Nyquist–Shannon sampling theorem says a continuous signal must contain no energy above f_s/2"
   - "If f0 >= 4000 Hz: the sample values are indistinguishable from those of a lower-frequency cosine"
-- It did not load a DSP skill; the baseline run was executed with the `Agent` tool using `subagent_type: "coder"` and an empty skills directory.
+- It did not load a DSP skill. The baseline run was executed by the controller via the `Agent` tool with `subagent_type: "coder"` and a plain prompt that did not reference any DSP skill. The implementer subagent did not have access to the `Agent` tool and initially used the Kimi CLI instead.
 - Full output: [`baseline-outputs/scenario-C.md`](baseline-outputs/scenario-C.md)
