@@ -48,6 +48,18 @@ digraph dsp_router {
 5. If the task is time-domain analysis only → load `dsp-continuous-time-lti` or `dsp-discrete-time-lti`.
 6. If unclear or the problem mixes CT and DT → load `dsp-fourier-analysis` first.
 
+## Available Sub-Skills (This Cycle)
+
+The following sub-skills are implemented and ready to load:
+- `dsp-fourier-analysis`
+- `dsp-z-transform`
+
+The following sub-skills are planned but not yet implemented; fall back to `dsp-fourier-analysis` if one of these would be the natural choice:
+- `dsp-continuous-time-lti`
+- `dsp-discrete-time-lti`
+- `dsp-laplace-transform`
+- `dsp-sampling`
+
 ## Common Mistakes
 - Picking Laplace for a discrete-time problem or z-transform for a continuous-time problem.
 - Skipping the region of convergence / stability check.
