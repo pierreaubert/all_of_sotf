@@ -4,7 +4,7 @@
 
 ## Scenario A: Choose Fourier series vs transform
 **Prompt:** "Find the frequency representation of x(t) = cos(2πt) + cos(4πt) defined for all t."
-**Expected with skill:** Agent recognizes the signal is aperiodic over (-∞, ∞) and uses Fourier transform, not series.
+**Expected with skill:** Agent recognizes the signal is periodic (fundamental frequency 1 Hz) and uses the exponential Fourier series; it may also state the CTFT as Dirac impulses at the harmonic frequencies.
 
 **Baseline observations:** The agent recognized the signal as periodic with fundamental frequency 1 Hz and derived the exponential Fourier-series coefficients. It also supplied the continuous-time Fourier transform as a sum of Dirac impulses.
 
