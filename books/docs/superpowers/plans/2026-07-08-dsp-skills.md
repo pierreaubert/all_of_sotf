@@ -79,8 +79,8 @@ Create `skills/dsp/dsp-problem-solving/scenarios.md`:
 
 ## Scenario C: Ambiguous mixed-domain prompt
 **Prompt:** "I sampled a continuous cosine at 8 kHz and the reconstructed signal sounds wrong."
-**Expected behavior without skill:** Agent may guess the issue without checking Nyquist criterion.
-**Expected behavior with skill:** Agent first loads `dsp-fourier-analysis` (fallback), then routes to `dsp-sampling` once it identifies aliasing/reconstruction as the issue.
+**Expected behavior without skill:** Agent may identify aliasing through the Nyquist criterion without loading a structured skill.
+**Expected behavior with skill:** Agent loads `dsp-fourier-analysis` (the fallback for unimplemented `dsp-sampling`) and diagnoses aliasing using the Nyquist criterion.
 ```
 
 - [ ] **Step 2: Verify file was created**
@@ -173,34 +173,35 @@ Classify the signal/system task and load the focused sub-skill that teaches the 
 digraph dsp_router {
   "Signal/system task?" [shape=diamond];
   "Discrete-time?" [shape=diamond];
-  "Need transform domain?" [shape=diamond];
-  "dsp-discrete-time-lti" [shape=box];
-  "dsp-continuous-time-lti" [shape=box];
+  "Need z-domain transform?" [shape=diamond];
   "dsp-z-transform" [shape=box];
-  "dsp-laplace-transform" [shape=box];
   "dsp-fourier-analysis" [shape=box];
-  "dsp-sampling" [shape=box];
 
   "Signal/system task?" -> "Discrete-time?" [label="yes"];
-  "Discrete-time?" -> "Need transform domain?" [label="yes"];
-  "Need transform domain?" -> "dsp-z-transform" [label="z-domain"];
-  "Need transform domain?" -> "dsp-fourier-analysis" [label="frequency"];
-  "Discrete-time?" -> "dsp-discrete-time-lti" [label="no (time domain)"];
-  "Signal/system task?" -> "Need transform domain?" [label="CT"];
-  "Need transform domain?" -> "dsp-laplace-transform" [label="s-domain"];
-  "Need transform domain?" -> "dsp-fourier-analysis" [label="frequency"];
-  "Signal/system task?" -> "dsp-sampling" [label="sampling/reconstruction"];
+  "Discrete-time?" -> "Need z-domain transform?" [label="yes"];
+  "Need z-domain transform?" -> "dsp-z-transform" [label="yes"];
+  "Need z-domain transform?" -> "dsp-fourier-analysis" [label="no / frequency / unclear"];
+  "Discrete-time?" -> "dsp-fourier-analysis" [label="no (time domain / other)"];
+  "Signal/system task?" -> "dsp-fourier-analysis" [label="CT / sampling / other"];
 }
 ```
 
 ## Routing Rules
 
-1. If the problem explicitly mentions sampling, aliasing, reconstruction, or the Nyquist rate → load `dsp-sampling`.
-2. If the system/signal is discrete-time and you need a transform → load `dsp-z-transform`.
-3. If the system/signal is continuous-time and you need a transform → load `dsp-laplace-transform`.
-4. If the task is frequency-domain analysis (Fourier series/transform, spectra, filtering) → load `dsp-fourier-analysis`.
-5. If the task is time-domain analysis only → load `dsp-continuous-time-lti` or `dsp-discrete-time-lti`.
-6. If unclear or the problem mixes CT and DT → load `dsp-fourier-analysis` first.
+1. If the system/signal is discrete-time and you need the z-transform (difference equation, H(z), ROC, stability) → load `dsp-z-transform`.
+2. For all other signal/system tasks — including continuous-time transforms, Fourier analysis, sampling, Laplace, time-domain-only analysis, or unclear/mixed CT-DT problems — load `dsp-fourier-analysis`.
+
+## Available Sub-Skills (This Cycle)
+
+The following sub-skills are implemented and ready to load:
+- `dsp-fourier-analysis`
+- `dsp-z-transform`
+
+The following sub-skills are planned for future cycles:
+- `dsp-continuous-time-lti`
+- `dsp-discrete-time-lti`
+- `dsp-laplace-transform`
+- `dsp-sampling`
 
 ## Common Mistakes
 - Picking Laplace for a discrete-time problem or z-transform for a continuous-time problem.
@@ -278,7 +279,7 @@ Create `skills/dsp/dsp-fourier-analysis/scenarios.md`:
 
 ## Scenario A: Choose Fourier series vs transform
 **Prompt:** "Find the frequency representation of x(t) = cos(2πt) + cos(4πt) defined for all t."
-**Expected with skill:** Agent recognizes the signal is aperiodic over (-∞, ∞) and uses Fourier transform, not series.
+**Expected with skill:** Agent recognizes the signal is periodic (fundamental frequency 1 Hz) and uses the exponential Fourier series; it may also state the CTFT as Dirac impulses at the harmonic frequencies.
 
 ## Scenario B: Apply convolution theorem
 **Prompt:** "An LTI system has impulse response h(t) = e^{-t}u(t) and input x(t) = e^{-2t}u(t). Find the output in the frequency domain."
