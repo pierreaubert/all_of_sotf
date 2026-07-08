@@ -19,34 +19,23 @@ Classify the signal/system task and load the focused sub-skill that teaches the 
 digraph dsp_router {
   "Signal/system task?" [shape=diamond];
   "Discrete-time?" [shape=diamond];
-  "Need transform domain?" [shape=diamond];
-  "dsp-discrete-time-lti" [shape=box];
-  "dsp-continuous-time-lti" [shape=box];
+  "Need z-domain transform?" [shape=diamond];
   "dsp-z-transform" [shape=box];
-  "dsp-laplace-transform" [shape=box];
   "dsp-fourier-analysis" [shape=box];
-  "dsp-sampling" [shape=box];
 
   "Signal/system task?" -> "Discrete-time?" [label="yes"];
-  "Discrete-time?" -> "Need transform domain?" [label="yes"];
-  "Need transform domain?" -> "dsp-z-transform" [label="z-domain"];
-  "Need transform domain?" -> "dsp-fourier-analysis" [label="frequency"];
-  "Discrete-time?" -> "dsp-discrete-time-lti" [label="no (time domain)"];
-  "Signal/system task?" -> "Need transform domain?" [label="CT"];
-  "Need transform domain?" -> "dsp-laplace-transform" [label="s-domain"];
-  "Need transform domain?" -> "dsp-fourier-analysis" [label="frequency"];
-  "Signal/system task?" -> "dsp-sampling" [label="sampling/reconstruction"];
+  "Discrete-time?" -> "Need z-domain transform?" [label="yes"];
+  "Need z-domain transform?" -> "dsp-z-transform" [label="yes"];
+  "Need z-domain transform?" -> "dsp-fourier-analysis" [label="no / frequency / unclear"];
+  "Discrete-time?" -> "dsp-fourier-analysis" [label="no (time domain / other)"];
+  "Signal/system task?" -> "dsp-fourier-analysis" [label="CT / sampling / other"];
 }
 ```
 
 ## Routing Rules
 
-1. If the problem explicitly mentions sampling, aliasing, reconstruction, or the Nyquist rate → load `dsp-sampling`.
-2. If the system/signal is discrete-time and you need a transform → load `dsp-z-transform`.
-3. If the system/signal is continuous-time and you need a transform → load `dsp-laplace-transform`.
-4. If the task is frequency-domain analysis (Fourier series/transform, spectra, filtering) → load `dsp-fourier-analysis`.
-5. If the task is time-domain analysis only → load `dsp-continuous-time-lti` or `dsp-discrete-time-lti`.
-6. If unclear or the problem mixes CT and DT → load `dsp-fourier-analysis` first.
+1. If the system/signal is discrete-time and you need the z-transform (difference equation, H(z), ROC, stability) → load `dsp-z-transform`.
+2. For all other signal/system tasks — including continuous-time transforms, Fourier analysis, sampling, Laplace, time-domain-only analysis, or unclear/mixed CT-DT problems — load `dsp-fourier-analysis`.
 
 ## Available Sub-Skills (This Cycle)
 
@@ -54,7 +43,7 @@ The following sub-skills are implemented and ready to load:
 - `dsp-fourier-analysis`
 - `dsp-z-transform`
 
-The following sub-skills are planned but not yet implemented; fall back to `dsp-fourier-analysis` if one of these would be the natural choice:
+The following sub-skills are planned for future cycles:
 - `dsp-continuous-time-lti`
 - `dsp-discrete-time-lti`
 - `dsp-laplace-transform`

@@ -44,7 +44,7 @@
 ## Scenario C: Ambiguous mixed-domain prompt
 **Prompt:** "I sampled a continuous cosine at 8 kHz and the reconstructed signal sounds wrong."
 **Expected behavior without skill:** Agent may guess the issue without checking Nyquist criterion.
-**Expected behavior with skill:** Agent loads `dsp-sampling` because the prompt explicitly mentions sampling and reconstruction (routing rule 1), then diagnoses aliasing using the Nyquist criterion.
+**Expected behavior with skill:** Agent loads `dsp-fourier-analysis` because `dsp-sampling` is not yet implemented; it then diagnoses aliasing using the Nyquist criterion.
 
 **Baseline observations:**
 - The baseline agent produced a correct answer. It identified aliasing as the likely cause and grounded the diagnosis in the Nyquist criterion.
@@ -57,7 +57,7 @@
 - Full output: [`baseline-outputs/scenario-C.md`](baseline-outputs/scenario-C.md)
 
 **With-skill observations:**
-- Agent decision: "Sub-skill to load: `dsp-sampling`"
-- Reasoning: "The question explicitly mentions sampling and reconstruction, which triggers routing rule 1."
+- Agent decision: "Sub-skill to load: `dsp-fourier-analysis`"
+- Reasoning: "The question involves sampling and reconstruction, but `dsp-sampling` is not yet implemented, so the router falls back to `dsp-fourier-analysis` for frequency-domain analysis."
 - Outcome: Correct. The agent then diagnosed aliasing and cited Nyquist frequency f_N = 4 kHz.
-- Compliance: Router skill routed directly to `dsp-sampling` because the prompt explicitly mentioned sampling and reconstruction, and produced a correct aliasing diagnosis.
+- Compliance: Router skill correctly avoided dispatching to the unimplemented `dsp-sampling` sub-skill and fell back to `dsp-fourier-analysis`, producing a correct aliasing diagnosis.
