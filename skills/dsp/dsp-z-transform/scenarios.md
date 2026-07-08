@@ -11,6 +11,8 @@
 - "Multiply numerator and denominator by z to get a cleaner form: H(z) = z/(z - 1/2)"
 - "The system is BIBO stable because its single pole at z = 1/2 lies inside the unit circle"
 
+**With-skill observations:** The agent followed the core `dsp-z-transform` pattern exactly: wrote the difference equation, applied the z-transform with the time-shift property, solved for H(z), stated the ROC for the causal case, inverted to h[n], and checked stability using the pole location. Outcome: Correct.
+
 ## Scenario B: Inverse z-transform
 **Prompt:** "Find h[n] for H(z) = 1/(1 - (1/3)z^{-1}) with ROC |z| > 1/3."
 **Expected with skill:** Agent recognizes right-sided sequence: h[n] = (1/3)^n u[n].
@@ -20,6 +22,8 @@
 - "h[n] = (1/3)^n u[n]"
 - "If the ROC were |z| < 1/3, the inverse transform would instead be the anti-causal sequence"
 
+**With-skill observations:** The agent followed the core pattern: cross-multiplied to recover the difference equation, confirmed the z-transform, restated H(z), used the ROC to identify the right-sided/causal sequence, applied the standard pair with a = 1/3, and verified stability by noting the pole at z = 1/3 is inside the unit circle. Outcome: Correct.
+
 ## Scenario C: Stability vs ROC confusion
 **Prompt:** "A system has a pole at z = 2 and is causal. Is it stable?"
 **Expected with skill:** Agent says causal → ROC |z| > 2, which excludes unit circle, so unstable.
@@ -28,3 +32,5 @@
 - "No — a causal system with a pole at z = 2 is unstable."
 - "For a causal LTI system, the Region of Convergence (ROC) is the exterior of a circle: |z| > r_max"
 - "The pole is at z = 2, so r_max = 2. Because the system is causal, the ROC is |z| > 2. This region lies entirely outside the unit circle and does not include |z| = 1."
+
+**With-skill observations:** The agent followed the core pattern: identified the denominator factor from the given pole, stated the causal ROC |z| > 2, applied the stability condition that the ROC must contain the unit circle, and concluded correctly that the system is unstable. Outcome: Correct — unstable.
