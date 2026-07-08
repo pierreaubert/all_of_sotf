@@ -4,7 +4,7 @@
 
 **Skill loaded:** `dsp-z-transform`
 
-**Execution method:** Controller ran this via the `Agent` tool with `subagent_type: "coder"` and the `dsp-z-transform` skill content in the system prompt.
+**Execution method:** Controller ran this via the `Agent` tool with `subagent_type: "coder"`. The system prompt included the full content of `skills/dsp/dsp-z-transform/SKILL.md` (SHA-256: `d54316dbef450934a679d296888cd8dd8e59341a0c3f3117758bf2840f41a7db`) followed by the user prompt below.
 
 **Agent response (full):**
 
