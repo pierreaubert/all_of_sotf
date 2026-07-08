@@ -23,9 +23,9 @@
 **Baseline observations:**
 - The baseline agent produced a correct answer. It computed the Fourier transform and correctly stopped at the general output expression because the LTI system was unspecified.
 - Verbatim quotes from the baseline transcript:
-  - "F[e^{-at}u(t)] = 1/(a + jω)"
-  - "the output in the frequency domain is: Y(jω) = H(jω)X(jω) = H(jω)/(a + jω)"
-  - "The problem statement does not specify the LTI system ... Without that, we can only give the general expression"
+  - "So: \(\boxed{\mathcal{F}\{e^{-at}u(t)\}=\frac{1}{a+j\omega}}\)"
+  - "the output in the frequency domain is: \(Y(j\omega)=H(j\omega)X(j\omega)=\frac{H(j\omega)}{a+j\omega}\)"
+  - "The problem statement does not specify the LTI system (i.e., \(h(t)\) or \(H(j\omega)\)). Without that, we can only give the general expression above."
 - It did not load a DSP skill. The baseline run was executed by the controller via the `Agent` tool with `subagent_type: "coder"` and a plain prompt that did not reference any DSP skill. The implementer subagent did not have access to the `Agent` tool and initially used the Kimi CLI instead.
 - Full output: [`baseline-outputs/scenario-B.md`](baseline-outputs/scenario-B.md)
 
