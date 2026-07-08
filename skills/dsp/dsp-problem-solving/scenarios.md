@@ -15,6 +15,12 @@
 - It did not load a DSP skill. The baseline run was executed by the controller via the `Agent` tool with `subagent_type: "coder"` and a plain prompt that did not reference any DSP skill. The implementer subagent did not have access to the `Agent` tool and initially used the Kimi CLI instead.
 - Full output: [`baseline-outputs/scenario-A.md`](baseline-outputs/scenario-A.md)
 
+**With-skill observations:**
+- Agent decision: "I would load the `dsp-z-transform` sub-skill."
+- Reasoning: "The system is described by a difference equation in discrete time ... Rule 2 of the router applies directly."
+- Outcome: Correct. The agent then solved via z-transform, found H(z) = 1/(1 - 0.5z^{-1}), h[n] = (0.5)^n u[n], and declared stable.
+- Compliance: Router skill routed to the expected `dsp-z-transform` sub-skill and produced a correct, complete answer.
+
 ## Scenario B: Continuous-time Fourier problem
 **Prompt:** "Find the Fourier transform of e^{-at}u(t), a > 0, and use it to find the output of an LTI system with this input."
 **Expected behavior without skill:** Agent may guess the transform pair wrong or omit convergence condition.
@@ -28,6 +34,12 @@
   - "The problem statement does not specify the LTI system (i.e., \(h(t)\) or \(H(j\omega)\)). Without that, we can only give the general expression above."
 - It did not load a DSP skill. The baseline run was executed by the controller via the `Agent` tool with `subagent_type: "coder"` and a plain prompt that did not reference any DSP skill. The implementer subagent did not have access to the `Agent` tool and initially used the Kimi CLI instead.
 - Full output: [`baseline-outputs/scenario-B.md`](baseline-outputs/scenario-B.md)
+
+**With-skill observations:**
+- Agent decision: "Load `dsp-fourier-analysis`."
+- Reasoning: "The problem asks for the Fourier transform of a continuous-time signal ... frequency-domain analysis ... matches routing rule 4."
+- Outcome: Correct. The agent then found X(jω) = 1/(a + jω) and Y(jω) = H(jω)/(a + jω).
+- Compliance: Router skill routed to the expected `dsp-fourier-analysis` sub-skill and produced a correct, complete answer.
 
 ## Scenario C: Ambiguous mixed-domain prompt
 **Prompt:** "I sampled a continuous cosine at 8 kHz and the reconstructed signal sounds wrong."
@@ -43,3 +55,9 @@
   - "If f0 >= 4000 Hz: the sample values are indistinguishable from those of a lower-frequency cosine"
 - It did not load a DSP skill. The baseline run was executed by the controller via the `Agent` tool with `subagent_type: "coder"` and a plain prompt that did not reference any DSP skill. The implementer subagent did not have access to the `Agent` tool and initially used the Kimi CLI instead.
 - Full output: [`baseline-outputs/scenario-C.md`](baseline-outputs/scenario-C.md)
+
+**With-skill observations:**
+- Agent decision: "Sub-skill to load: `dsp-sampling`"
+- Reasoning: "The question explicitly mentions sampling and reconstruction, which triggers routing rule 1."
+- Outcome: Correct. The agent then diagnosed aliasing and cited Nyquist frequency f_N = 4 kHz.
+- Compliance: Router skill routed directly to `dsp-sampling` because the prompt explicitly mentioned sampling and reconstruction, and produced a correct aliasing diagnosis.
