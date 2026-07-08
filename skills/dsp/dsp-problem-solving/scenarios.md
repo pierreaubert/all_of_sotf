@@ -17,7 +17,7 @@
 
 **With-skill observations:**
 - Agent decision: "I would load the `dsp-z-transform` sub-skill."
-- Reasoning: "The system is described by a difference equation in discrete time ... Rule 2 of the router applies directly."
+- Reasoning: "The system is described by a difference equation in discrete time ... Rule 1 of the router applies directly."
 - Outcome: Correct. The agent then solved via z-transform, found H(z) = 1/(1 - 0.5z^{-1}), h[n] = (0.5)^n u[n], and declared stable.
 - Compliance: Router skill routed to the expected `dsp-z-transform` sub-skill and produced a correct, complete answer.
 
@@ -37,7 +37,7 @@
 
 **With-skill observations:**
 - Agent decision: "Load `dsp-fourier-analysis`."
-- Reasoning: "The problem asks for the Fourier transform of a continuous-time signal ... frequency-domain analysis ... matches routing rule 4."
+- Reasoning: "The problem asks for the Fourier transform of a continuous-time signal ... frequency-domain analysis ... matches routing rule 2 (fallback for CT/Fourier problems)."
 - Outcome: Correct. The agent then found X(jω) = 1/(a + jω) and Y(jω) = H(jω)/(a + jω).
 - Compliance: Router skill routed to the expected `dsp-fourier-analysis` sub-skill and produced a correct, complete answer.
 
@@ -58,6 +58,6 @@
 
 **With-skill observations:**
 - Agent decision: "Sub-skill to load: `dsp-fourier-analysis`"
-- Reasoning: "The question involves sampling and reconstruction, but `dsp-sampling` is not yet implemented, so the router falls back to `dsp-fourier-analysis` for frequency-domain analysis."
+- Reasoning: "The question involves sampling and reconstruction, but `dsp-sampling` is not yet implemented, so the router falls back to `dsp-fourier-analysis` via rule 2."
 - Outcome: Correct. The agent then diagnosed aliasing and cited Nyquist frequency f_N = 4 kHz.
 - Compliance: Router skill correctly avoided dispatching to the unimplemented `dsp-sampling` sub-skill and fell back to `dsp-fourier-analysis`, producing a correct aliasing diagnosis.
