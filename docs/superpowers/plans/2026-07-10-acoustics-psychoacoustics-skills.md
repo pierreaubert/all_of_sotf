@@ -1,6 +1,6 @@
 # Acoustics & Psychoacoustics Skills Family Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build and test two router skills and six focused sub-skills for acoustics and psychoacoustics, grounded in the Rienstra & Hirschberg and Zwicker & Fastl texts.
 
@@ -34,7 +34,7 @@
 **Interfaces:**
 - Produces: Eight empty skill source directories.
 
-- [ ] **Step 1: Create directories**
+- [x] **Step 1: Create directories**
 
 ```bash
 mkdir -p skills/acoustics-problem-solving \
@@ -47,7 +47,7 @@ mkdir -p skills/acoustics-problem-solving \
   skills/psychoacoustics-pitch-timbre-roughness
 ```
 
-- [ ] **Step 2: Verify directories exist**
+- [x] **Step 2: Verify directories exist**
 
 ```bash
 ls -la skills/ | grep -E 'acoustics|psychoacoustics'
@@ -55,7 +55,7 @@ ls -la skills/ | grep -E 'acoustics|psychoacoustics'
 
 Expected: Eight directories listed.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add skills/
@@ -72,7 +72,7 @@ git commit -m "chore: scaffold acoustics and psychoacoustics skill source tree"
 **Interfaces:**
 - Produces: Router skill that dispatches to the three acoustics sub-skills.
 
-- [ ] **Step 1: Write the router skill**
+- [x] **Step 1: Write the router skill**
 
 Create `skills/acoustics-problem-solving/SKILL.md`:
 
@@ -129,14 +129,14 @@ digraph acoustics_router {
 - Treating a resonator as a simple mass-spring without checking radiation damping.
 ```
 
-- [ ] **Step 2: Verify frontmatter and file presence**
+- [x] **Step 2: Verify frontmatter and file presence**
 
 ```bash
 head -5 skills/acoustics-problem-solving/SKILL.md
 ls -la skills/acoustics-problem-solving/SKILL.md
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add skills/acoustics-problem-solving/SKILL.md
@@ -154,7 +154,7 @@ git commit -m "feat: add acoustics-problem-solving router skill"
 - Consumes: Router dispatch from `acoustics-problem-solving`.
 - Produces: Focused skill for free-field acoustics fundamentals.
 
-- [ ] **Step 1: Extract key reference content from Rienstra**
+- [x] **Step 1: Extract key reference content from Rienstra**
 
 Search the source markdown for wave equation, speed of sound, and acoustic energy:
 
@@ -163,7 +163,7 @@ grep -n "wave equation" books/An_Introduction_to_Acoustics.md | head -10
 grep -n "speed of sound" books/An_Introduction_to_Acoustics.md | head -10
 ```
 
-- [ ] **Step 2: Write the skill**
+- [x] **Step 2: Write the skill**
 
 Create `skills/acoustics-fundamentals/SKILL.md`:
 
@@ -213,7 +213,7 @@ Model small-amplitude sound in fluids using the linearized wave equation and int
 - Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/An_Introduction_to_Acoustics.md`
 ```
 
-- [ ] **Step 3: Verify word count**
+- [x] **Step 3: Verify word count**
 
 ```bash
 wc -w skills/acoustics-fundamentals/SKILL.md
@@ -221,7 +221,7 @@ wc -w skills/acoustics-fundamentals/SKILL.md
 
 Target: under 600 words.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add skills/acoustics-fundamentals/SKILL.md
@@ -239,7 +239,7 @@ git commit -m "feat: add acoustics-fundamentals sub-skill"
 - Consumes: Router dispatch from `acoustics-problem-solving`.
 - Produces: Focused skill for 1D and duct acoustics.
 
-- [ ] **Step 1: Extract key reference content from Rienstra**
+- [x] **Step 1: Extract key reference content from Rienstra**
 
 Search the source markdown for plane waves, reflection, and duct modes:
 
@@ -248,7 +248,7 @@ grep -n "Plane waves" books/An_Introduction_to_Acoustics.md | head -10
 grep -n "Reflection" books/An_Introduction_to_Acoustics.md | head -10
 ```
 
-- [ ] **Step 2: Write the skill**
+- [x] **Step 2: Write the skill**
 
 Create `skills/acoustics-waves-in-ducts/SKILL.md`:
 
@@ -298,7 +298,7 @@ Treat duct acoustics as 1D plane-wave propagation with reflection, transmission,
 - Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/An_Introduction_to_Acoustics.md`
 ```
 
-- [ ] **Step 3: Verify word count**
+- [x] **Step 3: Verify word count**
 
 ```bash
 wc -w skills/acoustics-waves-in-ducts/SKILL.md
@@ -306,7 +306,7 @@ wc -w skills/acoustics-waves-in-ducts/SKILL.md
 
 Target: under 600 words.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add skills/acoustics-waves-in-ducts/SKILL.md
@@ -324,7 +324,7 @@ git commit -m "feat: add acoustics-waves-in-ducts sub-skill"
 - Consumes: Router dispatch from `acoustics-problem-solving`.
 - Produces: Focused skill for radiation and resonator acoustics.
 
-- [ ] **Step 1: Extract key reference content from Rienstra**
+- [x] **Step 1: Extract key reference content from Rienstra**
 
 Search the source markdown for Green’s functions, resonators, and radiation:
 
@@ -333,7 +333,7 @@ grep -n "Helmholtz" books/An_Introduction_to_Acoustics.md | head -10
 grep -n "Green" books/An_Introduction_to_Acoustics.md | head -10
 ```
 
-- [ ] **Step 2: Write the skill**
+- [x] **Step 2: Write the skill**
 
 Create `skills/acoustics-radiation-and-resonators/SKILL.md`:
 
@@ -383,7 +383,7 @@ Model radiation from compact sources and resonators using Green’s functions, i
 - Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/An_Introduction_to_Acoustics.md`
 ```
 
-- [ ] **Step 3: Verify word count**
+- [x] **Step 3: Verify word count**
 
 ```bash
 wc -w skills/acoustics-radiation-and-resonators/SKILL.md
@@ -391,7 +391,7 @@ wc -w skills/acoustics-radiation-and-resonators/SKILL.md
 
 Target: under 600 words.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add skills/acoustics-radiation-and-resonators/SKILL.md
@@ -408,7 +408,7 @@ git commit -m "feat: add acoustics-radiation-and-resonators sub-skill"
 **Interfaces:**
 - Produces: Router skill that dispatches to the three psychoacoustics sub-skills.
 
-- [ ] **Step 1: Write the router skill**
+- [x] **Step 1: Write the router skill**
 
 Create `skills/psychoacoustics-problem-solving/SKILL.md`:
 
@@ -465,14 +465,14 @@ digraph psychoacoustics_router {
 - Using linear frequency scales for perceptual pitch or critical-band problems.
 ```
 
-- [ ] **Step 2: Verify frontmatter and file presence**
+- [x] **Step 2: Verify frontmatter and file presence**
 
 ```bash
 head -5 skills/psychoacoustics-problem-solving/SKILL.md
 ls -la skills/psychoacoustics-problem-solving/SKILL.md
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add skills/psychoacoustics-problem-solving/SKILL.md
@@ -490,7 +490,7 @@ git commit -m "feat: add psychoacoustics-problem-solving router skill"
 - Consumes: Router dispatch from `psychoacoustics-problem-solving`.
 - Produces: Focused skill for hearing area and masking.
 
-- [ ] **Step 1: Extract key reference content from Zwicker**
+- [x] **Step 1: Extract key reference content from Zwicker**
 
 Search the source markdown for threshold in quiet, masking, and critical bands:
 
@@ -499,7 +499,7 @@ grep -n "Threshold in Quiet" books/Psycho_Acoustics-Zwicker_Fastl.md | head -10
 grep -n "Masking" books/Psycho_Acoustics-Zwicker_Fastl.md | head -10
 ```
 
-- [ ] **Step 2: Write the skill**
+- [x] **Step 2: Write the skill**
 
 Create `skills/psychoacoustics-hearing-and-masking/SKILL.md`:
 
@@ -550,7 +550,7 @@ Predict audibility and masking using the hearing area, critical bands, and psych
 - Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/Psycho_Acoustics-Zwicker_Fastl.md`
 ```
 
-- [ ] **Step 3: Verify word count**
+- [x] **Step 3: Verify word count**
 
 ```bash
 wc -w skills/psychoacoustics-hearing-and-masking/SKILL.md
@@ -558,7 +558,7 @@ wc -w skills/psychoacoustics-hearing-and-masking/SKILL.md
 
 Target: under 600 words.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add skills/psychoacoustics-hearing-and-masking/SKILL.md
@@ -576,7 +576,7 @@ git commit -m "feat: add psychoacoustics-hearing-and-masking sub-skill"
 - Consumes: Router dispatch from `psychoacoustics-problem-solving`.
 - Produces: Focused skill for loudness models.
 
-- [ ] **Step 1: Extract key reference content from Zwicker**
+- [x] **Step 1: Extract key reference content from Zwicker**
 
 Search the source markdown for loudness and specific loudness:
 
@@ -584,7 +584,7 @@ Search the source markdown for loudness and specific loudness:
 grep -n "Loudness" books/Psycho_Acoustics-Zwicker_Fastl.md | head -10
 ```
 
-- [ ] **Step 2: Write the skill**
+- [x] **Step 2: Write the skill**
 
 Create `skills/psychoacoustics-loudness/SKILL.md`:
 
@@ -632,7 +632,7 @@ Estimate the perceived loudness of a sound by converting level and spectrum into
 - Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/Psycho_Acoustics-Zwicker_Fastl.md`
 ```
 
-- [ ] **Step 3: Verify word count**
+- [x] **Step 3: Verify word count**
 
 ```bash
 wc -w skills/psychoacoustics-loudness/SKILL.md
@@ -640,7 +640,7 @@ wc -w skills/psychoacoustics-loudness/SKILL.md
 
 Target: under 600 words.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add skills/psychoacoustics-loudness/SKILL.md
@@ -658,7 +658,7 @@ git commit -m "feat: add psychoacoustics-loudness sub-skill"
 - Consumes: Router dispatch from `psychoacoustics-problem-solving`.
 - Produces: Focused skill for pitch, timbre, and related sensations.
 
-- [ ] **Step 1: Extract key reference content from Zwicker**
+- [x] **Step 1: Extract key reference content from Zwicker**
 
 Search the source markdown for pitch, roughness, fluctuation, and sharpness:
 
@@ -667,7 +667,7 @@ grep -n "Pitch" books/Psycho_Acoustics-Zwicker_Fastl.md | head -10
 grep -n "Roughness" books/Psycho_Acoustics-Zwicker_Fastl.md | head -10
 ```
 
-- [ ] **Step 2: Write the skill**
+- [x] **Step 2: Write the skill**
 
 Create `skills/psychoacoustics-pitch-timbre-roughness/SKILL.md`:
 
@@ -724,7 +724,7 @@ Map spectral and temporal signal properties to the corresponding perceptual attr
 - Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/Psycho_Acoustics-Zwicker_Fastl.md`
 ```
 
-- [ ] **Step 3: Verify word count**
+- [x] **Step 3: Verify word count**
 
 ```bash
 wc -w skills/psychoacoustics-pitch-timbre-roughness/SKILL.md
@@ -732,7 +732,7 @@ wc -w skills/psychoacoustics-pitch-timbre-roughness/SKILL.md
 
 Target: under 600 words.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add skills/psychoacoustics-pitch-timbre-roughness/SKILL.md
@@ -751,7 +751,7 @@ git commit -m "feat: add psychoacoustics-pitch-timbre-roughness sub-skill"
 - Consumes: All three acoustics sub-skills.
 - Produces: Verified router with documented pressure scenarios.
 
-- [ ] **Step 1: Write pressure scenarios**
+- [x] **Step 1: Write pressure scenarios**
 
 Create `skills/acoustics-problem-solving/scenarios.md`:
 
@@ -771,19 +771,19 @@ Create `skills/acoustics-problem-solving/scenarios.md`:
 **Expected:** Agent loads `acoustics-radiation-and-resonators` and gives the f₀ formula.
 ```
 
-- [ ] **Step 2: Run each scenario through a subagent with the router skill loaded**
+- [x] **Step 2: Run each scenario through a subagent with the router skill loaded**
 
 Use `Agent` with `subagent_type: "coder"` and a system prompt that includes the router skill content. The subagent should state which sub-skill it loads and why.
 
-- [ ] **Step 3: Record compliance or failures**
+- [x] **Step 3: Record compliance or failures**
 
 Append observations to `skills/acoustics-problem-solving/scenarios.md` under each scenario.
 
-- [ ] **Step 4: Patch and re-test if needed**
+- [x] **Step 4: Patch and re-test if needed**
 
 Edit `skills/acoustics-problem-solving/SKILL.md` and repeat Step 2 until compliant.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add skills/acoustics-problem-solving/
@@ -802,7 +802,7 @@ git commit -m "test: verify acoustics-problem-solving routing"
 - Consumes: All three psychoacoustics sub-skills.
 - Produces: Verified router with documented pressure scenarios.
 
-- [ ] **Step 1: Write pressure scenarios**
+- [x] **Step 1: Write pressure scenarios**
 
 Create `skills/psychoacoustics-problem-solving/scenarios.md`:
 
@@ -822,19 +822,19 @@ Create `skills/psychoacoustics-problem-solving/scenarios.md`:
 **Expected:** Agent loads `psychoacoustics-pitch-timbre-roughness`.
 ```
 
-- [ ] **Step 2: Run each scenario through a subagent with the router skill loaded**
+- [x] **Step 2: Run each scenario through a subagent with the router skill loaded**
 
 Use `Agent` with `subagent_type: "coder"` and a system prompt that includes the router skill content.
 
-- [ ] **Step 3: Record compliance or failures**
+- [x] **Step 3: Record compliance or failures**
 
 Append observations to `skills/psychoacoustics-problem-solving/scenarios.md`.
 
-- [ ] **Step 4: Patch and re-test if needed**
+- [x] **Step 4: Patch and re-test if needed**
 
 Edit `skills/psychoacoustics-problem-solving/SKILL.md` and repeat Step 2 until compliant.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add skills/psychoacoustics-problem-solving/
@@ -853,7 +853,7 @@ git commit -m "test: verify psychoacoustics-problem-solving routing"
 - Consumes: Each focused skill content.
 - Produces: At least one documented and verified scenario per focused skill.
 
-- [ ] **Step 1: Write one scenario per focused skill**
+- [x] **Step 1: Write one scenario per focused skill**
 
 For each skill, create a `scenarios.md` with one concise scenario that the skill should answer correctly:
 
@@ -874,19 +874,19 @@ Example format:
 **Expected with skill:** "..."
 ```
 
-- [ ] **Step 2: Run each scenario through a subagent with the skill loaded**
+- [x] **Step 2: Run each scenario through a subagent with the skill loaded**
 
 Use `Agent` with `subagent_type: "coder"` and a system prompt that includes the focused skill content.
 
-- [ ] **Step 3: Record compliance or failures**
+- [x] **Step 3: Record compliance or failures**
 
 Append observations to each `scenarios.md`.
 
-- [ ] **Step 4: Patch and re-test if needed**
+- [x] **Step 4: Patch and re-test if needed**
 
 Edit the relevant `SKILL.md` and repeat Step 2 until compliant.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add skills/
@@ -904,7 +904,7 @@ git commit -m "test: add and verify focused skill pressure scenarios"
 - Consumes: All verified skill files.
 - Produces: Deployed skills in `~/.agents/skills/`.
 
-- [ ] **Step 1: Copy skill files to runtime location**
+- [x] **Step 1: Copy skill files to runtime location**
 
 ```bash
 for skill in acoustics-problem-solving acoustics-fundamentals acoustics-waves-in-ducts acoustics-radiation-and-resonators psychoacoustics-problem-solving psychoacoustics-hearing-and-masking psychoacoustics-loudness psychoacoustics-pitch-timbre-roughness; do
@@ -913,7 +913,7 @@ for skill in acoustics-problem-solving acoustics-fundamentals acoustics-waves-in
 done
 ```
 
-- [ ] **Step 2: Verify deployment**
+- [x] **Step 2: Verify deployment**
 
 ```bash
 ls -la "$HOME/.agents/skills/" | grep -E 'acoustics|psychoacoustics'
@@ -922,7 +922,7 @@ head -5 "$HOME/.agents/skills/acoustics-problem-solving/SKILL.md"
 
 Expected: Eight skill directories and valid YAML frontmatter.
 
-- [ ] **Step 3: Commit project source files**
+- [x] **Step 3: Commit project source files**
 
 ```bash
 git add skills/ docs/superpowers/plans/2026-07-10-acoustics-psychoacoustics-skills.md
@@ -933,8 +933,8 @@ git commit -m "deploy: acoustics and psychoacoustics skill family"
 
 ## Self-Review Checklist
 
-- [ ] Spec coverage: two routers + six sub-skills + TDD-for-skills testing are all represented.
-- [ ] Placeholder scan: no TBD, TODO, or "implement later".
-- [ ] Type consistency: skill names and sub-skill references match across files.
-- [ ] File paths are exact and use project-local `skills/` source tree.
-- [ ] Each task ends with a testable deliverable and a commit.
+- [x] Spec coverage: two routers + six sub-skills + TDD-for-skills testing are all represented.
+- [x] Placeholder scan: no TBD, TODO, or "implement later".
+- [x] Type consistency: skill names and sub-skill references match across files.
+- [x] File paths are exact and use project-local `skills/` source tree.
+- [x] Each task ends with a testable deliverable and a commit.

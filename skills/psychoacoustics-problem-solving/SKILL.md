@@ -37,8 +37,9 @@ digraph psychoacoustics_router {
 1. If the task involves hearing thresholds, masking, tuning curves, or peripheral processing → load `psychoacoustics-hearing-and-masking`.
 2. If the task involves loudness, partial masking, or loudness meters → load `psychoacoustics-loudness`.
 3. If the task involves pitch, timbre, sharpness, roughness, fluctuation strength, or subjective duration → load `psychoacoustics-pitch-timbre-roughness`.
+4. If the perceptual task is mixed or unclear, start with `psychoacoustics-hearing-and-masking`.
 
-## Available Sub-Skills
+## Implemented Sub-Skills
 
 - `psychoacoustics-hearing-and-masking`
 - `psychoacoustics-loudness`
