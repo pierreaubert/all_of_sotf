@@ -116,8 +116,9 @@ digraph acoustics_router {
 1. If the problem is about free-field waves, speed of sound, acoustic energy, or sound sources → load `acoustics-fundamentals`.
 2. If the problem is about pipes, ducts, plane waves, reflection/transmission, or 1D systems → load `acoustics-waves-in-ducts`.
 3. If the problem is about radiation, resonators, Helmholtz resonators, or self-sustained oscillations → load `acoustics-radiation-and-resonators`.
+4. If the problem mixes scales or is unclear, start with `acoustics-fundamentals`.
 
-## Available Sub-Skills
+## Implemented Sub-Skills
 
 - `acoustics-fundamentals`
 - `acoustics-waves-in-ducts`
@@ -452,8 +453,9 @@ digraph psychoacoustics_router {
 1. If the task involves hearing thresholds, masking, tuning curves, or peripheral processing → load `psychoacoustics-hearing-and-masking`.
 2. If the task involves loudness, partial masking, or loudness meters → load `psychoacoustics-loudness`.
 3. If the task involves pitch, timbre, sharpness, roughness, fluctuation strength, or subjective duration → load `psychoacoustics-pitch-timbre-roughness`.
+4. If the perceptual task is mixed or unclear, start with `psychoacoustics-hearing-and-masking`.
 
-## Available Sub-Skills
+## Implemented Sub-Skills
 
 - `psychoacoustics-hearing-and-masking`
 - `psychoacoustics-loudness`
