@@ -6,7 +6,7 @@
 **Expected with skill:**
 - Use f₀ = (c/2π) √(S/(V L_eff)) with c ≈ 343 m/s, S = πa² = π(0.008)² m², V = 1.2 × 10⁻³ m³.
 - Unflanged end correction: L_eff ≈ L + 0.6a = 0.020 m + 0.6 × 0.008 m = 0.0248 m.
-- f₀ ≈ (343 / (2π)) √(π(0.008)² / (1.2 × 10⁻³ × 0.0248)) ≈ 79.6 Hz.
+- f₀ ≈ (343 / (2π)) √(π(0.008)² / (1.2 × 10⁻³ × 0.0248)) ≈ 141.9 Hz.
 - Using the physical neck length alone ignores the radiation mass at the open end, which acts like extra length of air oscillating outside the neck. That lowers the resonance frequency compared with L_eff; here L_eff/L ≈ 1.24, so the corrected frequency is lower by about √(1/1.24) ≈ 0.90, i.e., ~10% lower.
 
 ## Subagent Response
