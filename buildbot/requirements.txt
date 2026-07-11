@@ -1,0 +1,7 @@
+buildbot==4.0.0
+buildbot-worker==4.0.0
+buildbot-www==4.0.0
+buildbot-waterfall-view==4.0.0
+buildbot-console-view==4.0.0
+buildbot-grid-view==4.0.0
+Twisted<24

@@ -1,0 +1,7 @@
+venv/
+master/
+worker-*/
+*.log
+*.pid
+*.tac.bak
+__pycache__/
