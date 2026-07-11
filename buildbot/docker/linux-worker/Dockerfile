@@ -1,4 +1,4 @@
-FROM buildbot/buildbot-worker:v4.0.0
+FROM buildbot/buildbot-worker:v4.1.0
 
 USER root
 

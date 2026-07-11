@@ -7,7 +7,7 @@
 2. Install Windows, enable OpenSSH server, and install the Rust toolchain plus `cargo`.
 3. From inside the VM, install the Buildbot worker in a Python venv:
    ```powershell
-   pip install buildbot-worker==4.0.0
+   pip install buildbot-worker==4.1.0
    buildbot-worker create-worker C:\buildbot-worker <HOST_IP> windows-qemu windows-password
    buildbot-worker start C:\buildbot-worker
    ```

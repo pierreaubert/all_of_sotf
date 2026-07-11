@@ -1,4 +1,4 @@
-HOST_PYTHON := /usr/bin/python3
+HOST_PYTHON ?= /usr/bin/python3
 VENV := venv
 PYTHON := $(VENV)/bin/python3
 PIP := $(VENV)/bin/pip

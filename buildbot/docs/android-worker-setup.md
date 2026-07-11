@@ -12,7 +12,7 @@
 3. On the same machine, install a Buildbot worker in a venv and connect it as `android-qemu`:
    ```bash
    python3 -m venv ~/bb-android
-   ~/bb-android/bin/pip install buildbot-worker==4.0.0
+   ~/bb-android/bin/pip install buildbot-worker==4.1.0
    ~/bb-android/bin/buildbot-worker create-worker ~/bb-android/worker <HOST> android-qemu android-password
    ~/bb-android/bin/buildbot-worker start ~/bb-android/worker
    ```
