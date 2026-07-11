@@ -5,7 +5,7 @@ PIP := $(VENV)/bin/pip
 BUILDBOT := $(VENV)/bin/buildbot
 WORKER := $(VENV)/bin/buildbot-worker
 
-.PHONY: install master worker start stop check
+.PHONY: install master worker start stop check logs-master logs-worker restart rebuild-linux
 
 install:
 	$(HOST_PYTHON) -m venv $(VENV)
@@ -27,3 +27,14 @@ stop:
 
 check:
 	$(BUILDBOT) checkconfig master/master.cfg
+
+logs-master:
+	tail -f master/twistd.log
+
+logs-worker:
+	tail -f worker-macos/twistd.log
+
+restart: stop start
+
+rebuild-linux:
+	docker build --no-cache -t sotf/buildbot-linux-worker:latest docker/linux-worker
