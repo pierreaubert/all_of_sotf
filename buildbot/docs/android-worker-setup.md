@@ -9,12 +9,22 @@
    ```bash
    emulator -avd ci -no-window -no-audio -gpu swiftshader_indirect
    ```
-3. On the same machine, install a Buildbot worker in a venv and connect it as `android-qemu`:
+3. Install a pinned `just` binary on the worker machine; the `gpui-toolkit-android-check` builder uses `just showcase-android-check`:
+   ```bash
+   JUST_VERSION=1.40.0
+   curl -fsSL -o /tmp/just.tar.gz \
+       "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+   sudo tar -xzf /tmp/just.tar.gz -C /usr/local/bin just
+   rm /tmp/just.tar.gz
+   chmod +x /usr/local/bin/just
+   ```
+   If the worker is not x86_64 Linux, install `just` 1.40.0 by another means and ensure it is on `PATH`.
+4. On the same machine, install a Buildbot worker in a venv and connect it as `android-qemu`:
    ```bash
    python3 -m venv ~/bb-android
    ~/bb-android/bin/pip install buildbot-worker==4.1.0
    ~/bb-android/bin/buildbot-worker create-worker ~/bb-android/worker <HOST> android-qemu android-password
    ~/bb-android/bin/buildbot-worker start ~/bb-android/worker
    ```
-4. The `gpui-toolkit-android-check` builder runs `just showcase-android-check`; ensure `ANDROID_HOME` points to the SDK in the worker environment.
+5. The `gpui-toolkit-android-check` builder runs `just showcase-android-check`; ensure `ANDROID_HOME` points to the SDK in the worker environment.
 5. The repository must be available inside the Android emulator/VM at the same absolute path `/Volumes/home_ext1/src_pierre/all_of_sotf`, because the Android builder uses that path as `workdir`. If that path is not possible in your environment, edit `master.cfg` to set the correct `workdir` for the Android builder.

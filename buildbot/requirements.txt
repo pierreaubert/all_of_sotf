@@ -5,4 +5,4 @@ buildbot-waterfall-view==4.1.0
 buildbot-console-view==4.1.0
 buildbot-grid-view==4.1.0
 Twisted<24  # Buildbot 4.1 requires Twisted < 24
-docker
+docker==7.1.0
