@@ -17,3 +17,4 @@
    ~/bb-android/bin/buildbot-worker start ~/bb-android/worker
    ```
 4. The `gpui-toolkit-android-check` builder runs `just showcase-android-check`; ensure `ANDROID_HOME` points to the SDK in the worker environment.
+5. The repository must be available inside the Android emulator/VM at the same absolute path `/Volumes/home_ext1/src_pierre/all_of_sotf`, because the Android builder uses that path as `workdir`. If that path is not possible in your environment, edit `master.cfg` to set the correct `workdir` for the Android builder.

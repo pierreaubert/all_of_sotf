@@ -13,3 +13,4 @@
    ```
 4. Replace `<HOST_IP>` with the host IP reachable from the VM (`host.docker.internal` does not apply here; use the VM gateway or a static host-only IP).
 5. Ensure the VM mounts or can clone `/Volumes/home_ext1/src_pierre/all_of_sotf` (e.g., via SMB or by cloning the repos over SSH).
+6. The repository must be available inside the VM at the same absolute path `/Volumes/home_ext1/src_pierre/all_of_sotf`, because the Windows builders use that path as `workdir`. If that path is not possible in your VM, edit `master.cfg` to set the correct `workdir` for the Windows builders.

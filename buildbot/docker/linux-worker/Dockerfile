@@ -25,5 +25,13 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- -y --default-toolchain stable --profile minimal
 ENV PATH="/home/buildbot/.cargo/bin:${PATH}"
 
-# Install Just
-RUN cargo install just
+# Install a pinned, statically-linked Just binary.
+# Avoids compiling from source inside the image build.
+USER root
+ARG JUST_VERSION=1.40.0
+RUN curl -fsSL -o /tmp/just.tar.gz \
+        "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+    && tar -xzf /tmp/just.tar.gz -C /usr/local/bin just \
+    && rm /tmp/just.tar.gz \
+    && chmod +x /usr/local/bin/just
+USER buildbot

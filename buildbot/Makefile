@@ -12,7 +12,7 @@ install:
 	$(PIP) install -r requirements.txt
 
 master:
-	$(BUILDBOT) create-master master
+	$(BUILDBOT) create-master --force master
 
 worker:
 	$(WORKER) create-worker worker-macos localhost macos-local macos-password
