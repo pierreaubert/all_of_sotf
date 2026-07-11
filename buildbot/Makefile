@@ -1,4 +1,4 @@
-HOST_PYTHON ?= /usr/bin/python3
+HOST_PYTHON ?= python3
 VENV := venv
 PYTHON := $(VENV)/bin/python3
 PIP := $(VENV)/bin/pip
@@ -20,12 +20,17 @@ worker:
 start:
 	$(BUILDBOT) start master
 	@echo "Waiting for master to be ready..."
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -sf http://localhost:8010 >/dev/null 2>&1; then echo "Master ready."; break; fi; \
+	@ready=0; for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -sf http://localhost:8010 >/dev/null 2>&1; then echo "Master ready."; ready=1; break; fi; \
 		sleep 1; \
-	done
+	done; \
+	if [ "$$ready" -ne 1 ]; then echo "Master HTTP port did not become ready in time." >&2; exit 1; fi
 	@echo "Waiting for PB port to be ready..."
-	@sleep 2
+	@pb_ready=0; for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if nc -z localhost 9989 >/dev/null 2>&1; then echo "PB port ready."; pb_ready=1; break; fi; \
+		sleep 1; \
+	done; \
+	if [ "$$pb_ready" -ne 1 ]; then echo "Master PB port did not become ready in time." >&2; exit 1; fi
 	$(WORKER) start worker-macos
 
 stop:
@@ -44,4 +49,4 @@ logs-worker:
 restart: stop start
 
 rebuild-linux:
-	docker build --no-cache -t sotf/buildbot-linux-worker:latest docker/linux-worker
+	docker build --no-cache -t sotf/buildbot-linux-worker:v4.1.0 docker/linux-worker

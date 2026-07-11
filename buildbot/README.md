@@ -19,6 +19,12 @@ make start
 
 Open the dashboard at http://localhost:8010.
 
+Useful targets:
+
+- `make check` — validate `master.cfg`.
+- `make restart` — stop and start the master and worker.
+- `make rebuild-linux` — rebuild the Linux Docker worker image.
+
 ## Stop
 
 ```bash
@@ -43,3 +49,5 @@ See:
 
 - **No commit-level source checkout:** builders run commands against the currently checked-out working tree on the host/VM. They do not fetch or check out the triggering commit. This is acceptable for this local CI instance, but it means the dashboard may report builds for a commit that is not exactly what exists on disk.
 - **Windows and Android workers require the repo at the host path:** the Windows and Android builders use absolute host paths (`/Volumes/home_ext1/src_pierre/all_of_sotf`) as `workdir`. The VM or emulator must expose the repository at that same path, or the builder configuration must be adjusted for the worker environment.
+- **Linux Docker latent worker assumes Docker Desktop on macOS:** the worker uses `host.docker.internal` to reach the master's PB port. This address is provided by Docker Desktop on macOS; on a Linux Docker host you will need to change `masterFQDN` in `master.cfg` to the host's IP address or a custom bridge name.
+- **Root QA builders run only on macOS:** `root-qa-macos` (align-crates and quality-matrix-collect) writes artifacts back into the repo tree. The Linux container user does not match the host macOS user, so a Linux root QA builder is intentionally not provided.
