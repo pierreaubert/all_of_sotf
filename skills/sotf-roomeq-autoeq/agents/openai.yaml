@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOTF RoomEQ AutoEQ"
+  short_description: "RoomEQ, AutoEQ, export, and QA guidance"
+  default_prompt: "Use $sotf-roomeq-autoeq to fix or extend SOTF RoomEQ behavior."

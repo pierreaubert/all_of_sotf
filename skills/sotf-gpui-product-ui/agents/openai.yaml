@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOTF GPUI Product UI"
+  short_description: "GPUI app, toolkit, layout, and state"
+  default_prompt: "Use $sotf-gpui-product-ui to implement or review SOTF GPUI UI changes."

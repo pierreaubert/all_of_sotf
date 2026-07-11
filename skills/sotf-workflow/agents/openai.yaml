@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOTF Workflow"
+  short_description: "SOTF planning, issue, PR workflow"
+  default_prompt: "Use $sotf-workflow to plan and execute a SOTF repository change."

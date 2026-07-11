@@ -1,6 +1,10 @@
 .venv
+venv
 .pytest_cache
 __pycache__
+
+node_modules
+
 /autoeq
 /gpui-toolkit
 /math-audio
@@ -8,10 +12,14 @@ __pycache__
 /sotf
 /symphonia-add-ons
 /target
+/books
+
 .tokensave
 .DS_Store
+.superpowers
 /docs/superpowers
 /index
+
 .*#
 .*~
 *#

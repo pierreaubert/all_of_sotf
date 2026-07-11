@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOTF Systemwide Audio"
+  short_description: "Systemwide daemon, HAL, and recovery"
+  default_prompt: "Use $sotf-systemwide-audio to change SOTF systemwide daemon or HAL behavior."

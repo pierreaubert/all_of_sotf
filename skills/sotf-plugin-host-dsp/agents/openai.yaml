@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOTF Plugin Host DSP"
+  short_description: "Plugin host, DSP, parameters, and QA"
+  default_prompt: "Use $sotf-plugin-host-dsp to work on SOTF plugin host or DSP code."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOTF Release QA"
+  short_description: "Release checks, QA matrix, and builds"
+  default_prompt: "Use $sotf-release-qa to choose and report SOTF release or QA checks."
