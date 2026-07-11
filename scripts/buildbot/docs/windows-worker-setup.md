@@ -16,7 +16,7 @@ Workers connect **to** the master. The VM must run `buildbot-worker` and reach t
   - SMB share from the macOS host
   - Clone the repos over SSH into `C:\workspace`
 
-The Windows builders expect each workspace at `C:\workspace\<workspace>` (e.g. `C:\workspace\sotf`). This path is configured in `buildbot/master.cfg`.
+The Windows builders expect each workspace at `C:\workspace\<workspace>` (e.g. `C:\workspace\sotf`). This path is configured in `scripts/buildbot/master.cfg`.
 
 ## 2. Find the host IP from inside the VM
 

@@ -9,7 +9,7 @@ Local continuous integration for the six Rust workspaces under this repository.
 ## Quick start
 
 ```bash
-cd /Volumes/home_ext1/src_pierre/all_of_sotf/buildbot
+cd /Volumes/home_ext1/src_pierre/all_of_sotf/scripts/buildbot
 just install
 just master
 just worker
@@ -27,7 +27,7 @@ Useful recipes:
 
 ## Configuration
 
-`buildbot/master.cfg` is the canonical tracked configuration. The `just master`, `just start`, and `just check` recipes copy it into `buildbot/master/master.cfg` (creating `buildbot/master/` if necessary), so the live config is always refreshed from the canonical file. Do not edit `buildbot/master/master.cfg` directly; it will be overwritten on the next sync.
+`scripts/buildbot/master.cfg` is the canonical tracked configuration. The `just master`, `just start`, and `just check` recipes copy it into `scripts/buildbot/master/master.cfg` (creating `scripts/buildbot/master/` if necessary), so the live config is always refreshed from the canonical file. Do not edit `scripts/buildbot/master/master.cfg` directly; it will be overwritten on the next sync.
 
 ## Stop
 
