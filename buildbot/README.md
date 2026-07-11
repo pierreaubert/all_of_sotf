@@ -25,6 +25,10 @@ Useful targets:
 - `make restart` — stop and start the master and worker.
 - `make rebuild-linux` — rebuild the Linux Docker worker image.
 
+## Configuration
+
+`buildbot/master.cfg` is the canonical tracked configuration. The `make master`, `make start`, and `make check` targets copy it into `buildbot/master/master.cfg` (creating `buildbot/master/` if necessary), so the live config is always refreshed from the canonical file. Do not edit `buildbot/master/master.cfg` directly; it will be overwritten on the next sync.
+
 ## Stop
 
 ```bash

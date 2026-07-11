@@ -5,19 +5,24 @@ PIP := $(VENV)/bin/pip
 BUILDBOT := $(VENV)/bin/buildbot
 WORKER := $(VENV)/bin/buildbot-worker
 
-.PHONY: install master worker start stop check logs-master logs-worker restart rebuild-linux
+.PHONY: install master worker start stop check logs-master logs-worker restart rebuild-linux sync-config
 
 install:
 	@if [ ! -f "$(PYTHON)" ]; then $(HOST_PYTHON) -m venv $(VENV); fi
 	$(PIP) install -r requirements.txt
 
-master:
+sync-config:
+	@mkdir -p master
+	cp master.cfg master/master.cfg
+
+master: sync-config
 	$(BUILDBOT) create-master --force master
+	$(MAKE) sync-config
 
 worker:
 	$(WORKER) create-worker --force worker-macos localhost macos-local macos-password
 
-start:
+start: sync-config
 	$(BUILDBOT) start master
 	@echo "Waiting for master to be ready..."
 	@ready=0; for i in 1 2 3 4 5 6 7 8 9 10; do \
@@ -37,7 +42,7 @@ stop:
 	$(WORKER) stop worker-macos || true
 	$(BUILDBOT) stop master || true
 
-check:
+check: sync-config
 	$(BUILDBOT) checkconfig master/master.cfg
 
 logs-master:

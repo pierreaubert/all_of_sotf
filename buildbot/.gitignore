@@ -1,4 +1,6 @@
 venv/
+# Generated Buildbot master state directory. Canonical config is tracked as
+# ./master.cfg and copied in by `make sync-config`.
 master/
 worker-*/
 *.log
