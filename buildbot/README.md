@@ -10,36 +10,36 @@ Local continuous integration for the six Rust workspaces under this repository.
 
 ```bash
 cd /Volumes/home_ext1/src_pierre/all_of_sotf/buildbot
-make install
-make master
-make worker
-make check
-make start
+just install
+just master
+just worker
+just check
+just start
 ```
 
 Open the dashboard at http://localhost:8010.
 
-Useful targets:
+Useful recipes:
 
-- `make check` — validate `master.cfg`.
-- `make restart` — stop and start the master and worker.
-- `make rebuild-linux` — rebuild the Linux Docker worker image.
+- `just check` — validate `master.cfg`.
+- `just restart` — stop and start the master and worker.
+- `just rebuild-linux` — rebuild the Linux Docker worker image.
 
 ## Configuration
 
-`buildbot/master.cfg` is the canonical tracked configuration. The `make master`, `make start`, and `make check` targets copy it into `buildbot/master/master.cfg` (creating `buildbot/master/` if necessary), so the live config is always refreshed from the canonical file. Do not edit `buildbot/master/master.cfg` directly; it will be overwritten on the next sync.
+`buildbot/master.cfg` is the canonical tracked configuration. The `just master`, `just start`, and `just check` recipes copy it into `buildbot/master/master.cfg` (creating `buildbot/master/` if necessary), so the live config is always refreshed from the canonical file. Do not edit `buildbot/master/master.cfg` directly; it will be overwritten on the next sync.
 
 ## Stop
 
 ```bash
-make stop
+just stop
 ```
 
 ## Adding a new workspace builder
 
 1. Add a workspace entry to `master.cfg` in the `WORKSPACES` list.
 2. Ensure the workspace directory has a `Justfile` with `check`, `lint`, and `test` targets.
-3. Run `make check` and restart the master.
+3. Run `just check` and restart the master.
 
 ## Cross-platform workers
 

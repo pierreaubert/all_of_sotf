@@ -1,0 +1,94 @@
+set shell := ["bash", "-c"]
+
+host_python := env_var_or_default("HOST_PYTHON", "python3")
+venv := "venv"
+python := venv + "/bin/python3"
+pip := venv + "/bin/pip"
+buildbot := venv + "/bin/buildbot"
+worker := venv + "/bin/buildbot-worker"
+
+# Show available recipes.
+default:
+	@just --list
+
+# Create the Python virtualenv and install Buildbot packages.
+install:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	if [ ! -f "{{python}}" ]; then
+		{{host_python}} -m venv {{venv}}
+	fi
+	{{pip}} install -r requirements.txt
+
+# Copy the canonical master config into the live master directory.
+sync-config:
+	mkdir -p master
+	cp master.cfg master/master.cfg
+
+# Create the Buildbot master directory and install the canonical config.
+master: sync-config
+	{{buildbot}} create-master --force master
+	just sync-config
+
+# Create the macOS local worker.
+worker:
+	{{worker}} create-worker --force worker-macos localhost macos-local macos-password
+
+# Start the master and the macOS worker.
+start: sync-config
+	#!/usr/bin/env bash
+	set -euo pipefail
+	{{buildbot}} start master
+	echo "Waiting for master HTTP port to be ready..."
+	ready=0
+	for i in {1..10}; do
+		if curl -sf http://localhost:8010 >/dev/null 2>&1; then
+			echo "Master HTTP port ready."
+			ready=1
+			break
+		fi
+		sleep 1
+	done
+	if [ "$ready" -ne 1 ]; then
+		echo "Master HTTP port did not become ready in time." >&2
+		exit 1
+	fi
+	echo "Waiting for master PB port to be ready..."
+	pb_ready=0
+	for i in {1..10}; do
+		if nc -z localhost 9989 >/dev/null 2>&1; then
+			echo "Master PB port ready."
+			pb_ready=1
+			break
+		fi
+		sleep 1
+	done
+	if [ "$pb_ready" -ne 1 ]; then
+		echo "Master PB port did not become ready in time." >&2
+		exit 1
+	fi
+	{{worker}} start worker-macos
+
+# Stop the master and the macOS worker.
+stop:
+	{{worker}} stop worker-macos || true
+	{{buildbot}} stop master || true
+
+# Validate the Buildbot configuration.
+check: sync-config
+	{{buildbot}} checkconfig master/master.cfg
+
+# Tail the master log.
+logs-master:
+	tail -f master/twistd.log
+
+# Tail the worker log.
+logs-worker:
+	tail -f worker-macos/twistd.log
+
+# Stop and start everything.
+restart: stop start
+
+# Rebuild the Linux Docker latent worker image.
+rebuild-linux:
+	docker build --no-cache -t sotf/buildbot-linux-worker:v4.1.0 docker/linux-worker
