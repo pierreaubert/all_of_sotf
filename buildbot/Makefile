@@ -24,11 +24,13 @@ start:
 		if curl -sf http://localhost:8010 >/dev/null 2>&1; then echo "Master ready."; break; fi; \
 		sleep 1; \
 	done
+	@echo "Waiting for PB port to be ready..."
+	@sleep 2
 	$(WORKER) start worker-macos
 
 stop:
-	$(WORKER) stop worker-macos
-	$(BUILDBOT) stop master
+	$(WORKER) stop worker-macos || true
+	$(BUILDBOT) stop master || true
 
 check:
 	$(BUILDBOT) checkconfig master/master.cfg

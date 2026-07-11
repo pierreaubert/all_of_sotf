@@ -34,4 +34,10 @@ RUN curl -fsSL -o /tmp/just.tar.gz \
     && tar -xzf /tmp/just.tar.gz -C /usr/local/bin just \
     && rm /tmp/just.tar.gz \
     && chmod +x /usr/local/bin/just
+
+# Named volumes are created as root by Docker; pre-create and chown the
+# directories so the buildbot user can write the Cargo cache and target cache.
+RUN mkdir -p /home/buildbot/.cargo/registry /home/buildbot/.cargo/git /workspace/target \
+    && chown -R buildbot:buildbot /home/buildbot/.cargo /workspace/target
+
 USER buildbot
