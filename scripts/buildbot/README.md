@@ -1,57 +1,88 @@
 # SOTF Buildbot CI
 
-Local continuous integration for the six Rust workspaces under this repository.
+Local cross-platform continuous integration for `gpui-toolkit`, `math-audio`,
+`autoeq`, and `sotf`.
 
-## Security note
+## Coverage policy
 
-`master.cfg` contains plaintext bootstrap passwords for the workers. These are fine for local development, but they should be rotated before the Buildbot master is exposed to any network.
+| Trigger | macOS | Linux | Windows | Android | iOS/tvOS |
+| --- | --- | --- | --- | --- | --- |
+| workspace commit | check/lint/full tests | check/lint/full tests | check/lint/full tests | — | — |
+| nightly | tests + full `just qa` | tests + full `just qa` | tests + full `just qa` | supported target checks | simulator builds |
+| force scheduler | any individual builder | any individual builder | any individual builder | any target builder | simulator or device build |
+
+`math-audio` has no `just check`; its lint and nextest recipes compile its
+supported surface. Device builds are force-only because they may need connected
+hardware, signing, or provisioning. The exact matrix lives in `ci_matrix.py`
+and has regression tests under `tests/`.
+
+## Version and history tracking
+
+Every builder records two Buildbot properties before executing work:
+
+- `tested_revision`: the actual workspace `HEAD`, not merely the revision that
+  caused the scheduler to run.
+- `version_snapshot`: a JSON record containing UTC time, revision/describe,
+  branch and dirty state, OS/release/architecture, and Python, Rust, Cargo,
+  cargo-nextest, and just versions.
+
+Buildbot stores builds, results, logs, and these properties in
+`master/state.sqlite`, so the dashboard can compare results over time by
+platform and tool/repository version. Back up the entire `master/` directory to
+retain history. This local installation intentionally tests shared working
+trees rather than checking out each sourcestamp; `tested_revision` is therefore
+the authoritative version.
 
 ## Quick start
+
+Buildbot 4.1 requires Python 3.9–3.12. The recipes default to `python3.12`; set
+`HOST_PYTHON` to another supported interpreter when needed.
 
 ```bash
 cd /Volumes/home_ext1/src_pierre/all_of_sotf/scripts/buildbot
 just install
+just validate
 just master
 just worker
-just check
+just rebuild-linux
 just start
 ```
 
-Open the dashboard at http://localhost:8010.
+Open <http://localhost:8010>. `just install` detects and rebuilds a virtualenv
+whose interpreter or shebangs became stale after moving this directory.
 
 Useful recipes:
 
-- `just check` — validate `master.cfg`.
-- `just restart` — stop and start the master and worker.
-- `just rebuild-linux` — rebuild the Linux Docker worker image.
+- `just validate` — run matrix/version tests and Buildbot `checkconfig`.
+- `just restart` — stop, upgrade, and start the local master and worker.
+- `just rebuild-linux` — rebuild the Linux latent-worker image.
+- `just logs-master` / `just logs-worker` — follow runtime logs.
+- `just stop` — stop the local worker and master.
 
-## Configuration
+The force-only `buildbot-smoke-macos` and `buildbot-smoke-linux` builders
+validate the configuration, latent worker, and version-property pipeline
+without launching a workspace's long test suite.
 
-`scripts/buildbot/master.cfg` is the canonical tracked configuration. The `just master`, `just start`, and `just check` recipes copy it into `scripts/buildbot/master/master.cfg` (creating `scripts/buildbot/master/` if necessary), so the live config is always refreshed from the canonical file. Do not edit `scripts/buildbot/master/master.cfg` directly; it will be overwritten on the next sync.
+## External workers
 
-## Stop
+The macOS worker is local. Linux uses a Docker latent worker. Windows and
+Android require separately prepared workers:
 
-```bash
-just stop
-```
-
-## Adding a new workspace builder
-
-1. Add a workspace entry to `master.cfg` in the `WORKSPACES` list.
-2. Ensure the workspace directory has a `Justfile` with `check`, `lint`, and `test` targets.
-3. Run `just check` and restart the master.
-
-## Cross-platform workers
-
-See:
 - `docs/windows-worker-setup.md`
 - `docs/android-worker-setup.md`
 
-> **Note:** Windows and Android builders require a manual VM/emulator setup before they will run. The Buildbot workers themselves only connect to the master; the underlying QEMU/Android emulator environment must be prepared and started separately.
+The master does not discover or boot QEMU VMs/emulators. Workers connect to the
+master on PB port 9989, and their checkout/mount must match the path documented
+in the setup guide.
 
-## Current limitations
+## Configuration and security
 
-- **No commit-level source checkout:** builders run commands against the currently checked-out working tree on the host/VM. They do not fetch or check out the triggering commit. This is acceptable for this local CI instance, but it means the dashboard may report builds for a commit that is not exactly what exists on disk.
-- **Windows and Android workers require the repo at the host path:** the Windows and Android builders use absolute host paths (`/Volumes/home_ext1/src_pierre/all_of_sotf`) as `workdir`. The VM or emulator must expose the repository at that same path, or the builder configuration must be adjusted for the worker environment.
-- **Linux Docker latent worker assumes Docker Desktop on macOS:** the worker uses `host.docker.internal` to reach the master's PB port. This address is provided by Docker Desktop on macOS; on a Linux Docker host you will need to change `masterFQDN` in `master.cfg` to the host's IP address or a custom bridge name.
-- **Root QA builders run only on macOS:** `root-qa-macos` (align-crates and quality-matrix-collect) writes artifacts back into the repo tree. The Linux container user does not match the host macOS user, so a Linux root QA builder is intentionally not provided.
+`master.cfg`, `ci_matrix.py`, and `version_snapshot.py` are canonical tracked
+files. The recipes copy the master-side modules into `master/`; do not edit the
+generated copies.
+
+Bootstrap worker passwords default to local-development values. Override
+`BUILDBOT_MACOS_PASSWORD`, `BUILDBOT_LINUX_PASSWORD`,
+`BUILDBOT_WINDOWS_PASSWORD`, and `BUILDBOT_ANDROID_PASSWORD` before exposing
+the service to a network. `BUILDBOT_DOCKER_MASTER` overrides the Docker
+worker's default `host.docker.internal` master address.

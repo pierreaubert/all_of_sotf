@@ -22,7 +22,10 @@
    chmod +x /usr/local/bin/just
    ```
    If the worker is not x86_64 Linux, substitute the appropriate release asset for its architecture.
-4. On the same machine, install a Buildbot worker in a venv and connect it as `android-qemu`:
+4. Mount or clone the aggregate repository at `/workspace`. Android builders
+   expect `/workspace/gpui-toolkit`, `/workspace/sotf`, and
+   `/workspace/scripts/buildbot/version_snapshot.py`.
+5. On the same machine, install a Buildbot worker in a venv and connect it as `android-qemu`:
    ```bash
    python3 -m venv ~/bb-android
    ~/bb-android/bin/pip install buildbot-worker==4.1.0

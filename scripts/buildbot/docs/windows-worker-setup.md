@@ -10,7 +10,9 @@ Workers connect **to** the master. The VM must run `buildbot-worker` and reach t
 
 - Install Windows 11 in UTM/QEMU.
 - Enable OpenSSH server or set up another way to access the VM from the host.
-- Install the Rust toolchain (`cargo`, `rustc`).
+- Install Git, Python 3.12, the Rust toolchain (`cargo`, `rustc`), `just`, and
+  `cargo-nextest`. Full QA may also require CMake, Ninja, LLVM/Clang, and the
+  platform SDK dependencies used by the workspace.
 - Make the repository available inside the VM at `C:\workspace`. You can use:
   - UTM shared folders
   - SMB share from the macOS host
@@ -48,6 +50,16 @@ C:\buildbot-venv\Scripts\buildbot-worker start C:\buildbot-worker
 ```
 
 Replace `<HOST_IP>` with the gateway IP found above.
+
+Before connecting the worker, verify the commands Buildbot will invoke:
+
+```powershell
+git --version
+rustc --version
+cargo nextest --version
+just --version
+python --version
+```
 
 ## 4. Verify on the master
 

@@ -1,9 +1,10 @@
 set shell := ["bash", "-c"]
 
-host_python := env_var_or_default("HOST_PYTHON", "python3")
+# Buildbot 4.1 pins Twisted 23, which is incompatible with Python 3.13+
+# because it still imports the removed stdlib `cgi` module.
+host_python := env_var_or_default("HOST_PYTHON", "python3.12")
 venv := "venv"
 python := venv + "/bin/python3"
-pip := venv + "/bin/pip"
 buildbot := venv + "/bin/buildbot"
 worker := venv + "/bin/buildbot-worker"
 
@@ -15,27 +16,42 @@ default:
 install:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	if [ ! -f "{{python}}" ]; then
-		{{host_python}} -m venv {{venv}}
+	"{{host_python}}" -c 'import sys; assert (3, 9) <= sys.version_info[:2] < (3, 13), "Buildbot requires Python 3.9-3.12"'
+	if ! "{{python}}" -c 'import sys; assert (3, 9) <= sys.version_info[:2] < (3, 13); assert sys.prefix.endswith("/scripts/buildbot/venv")' >/dev/null 2>&1 \
+		|| ! "{{buildbot}}" --version >/dev/null 2>&1; then
+		echo "Rebuilding missing or relocated Buildbot virtualenv..."
+		{{host_python}} -m venv --clear {{venv}}
 	fi
-	{{pip}} install -r requirements.txt
+	"{{python}}" -m pip install -r requirements.txt
 
 # Copy the canonical master config into the live master directory.
 sync-config:
 	mkdir -p master
 	cp master.cfg master/master.cfg
+	cp ci_matrix.py master/ci_matrix.py
 
 # Create the Buildbot master directory and install the canonical config.
 master: sync-config
+	#!/usr/bin/env bash
+	set -euo pipefail
 	{{buildbot}} create-master --force master
+	if [ -f master/buildbot.tac.new ]; then
+		mv master/buildbot.tac.new master/buildbot.tac
+	fi
 	just sync-config
+	{{buildbot}} upgrade-master master
 
 # Create the macOS local worker.
 worker:
+	#!/usr/bin/env bash
+	set -euo pipefail
 	{{worker}} create-worker --force worker-macos localhost macos-local macos-password
+	if [ -f worker-macos/buildbot.tac.new ]; then
+		mv worker-macos/buildbot.tac.new worker-macos/buildbot.tac
+	fi
 
 # Start the master and the macOS worker.
-start: sync-config
+start: master worker
 	#!/usr/bin/env bash
 	set -euo pipefail
 	{{buildbot}} start master
@@ -78,6 +94,13 @@ stop:
 check: sync-config
 	{{buildbot}} checkconfig master/master.cfg
 
+# Run Buildbot configuration regression tests.
+test-config:
+	"{{python}}" -m unittest discover -s tests -v
+
+# Validate both the Python tests and Buildbot's own configuration loader.
+validate: test-config check
+
 # Tail the master log.
 logs-master:
 	tail -f master/twistd.log
@@ -91,4 +114,8 @@ restart: stop start
 
 # Rebuild the Linux Docker latent worker image.
 rebuild-linux:
-	docker build --no-cache -t sotf/buildbot-linux-worker:v4.1.0 docker/linux-worker
+	docker build --platform linux/amd64 -t sotf/buildbot-linux-worker:v4.1.0 docker/linux-worker
+
+# Rebuild the Linux image without cached layers.
+rebuild-linux-clean:
+	docker build --platform linux/amd64 --no-cache -t sotf/buildbot-linux-worker:v4.1.0 docker/linux-worker

@@ -13,6 +13,7 @@ node_modules
 /symphonia-add-ons
 /target
 /books
+/buildbot
 
 .tokensave
 .DS_Store
