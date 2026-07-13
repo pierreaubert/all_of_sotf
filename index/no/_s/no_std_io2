@@ -1,1 +1,0 @@
-{"name":"no_std_io2","vers":"0.9.4","deps":[{"name":"memchr","req":"^2","features":[],"optional":false,"default_features":false,"target":null,"kind":null,"package":null}],"cksum":"418abd1b6d34fbf6cae440dc874771b0525a604428704c76e48b29a5e67b8003","features":{"alloc":[],"default":[],"nightly":[],"std":["alloc"]},"yanked":false}

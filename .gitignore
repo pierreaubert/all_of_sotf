@@ -14,11 +14,12 @@ node_modules
 /target
 /books
 /buildbot
+/index
+/docs
 
 .tokensave
 .DS_Store
 .superpowers
-/docs/superpowers
 /index
 
 .*#

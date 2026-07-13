@@ -1,1 +1,0 @@
-{"name":"bitstream-io","vers":"4.10.0","deps":[{"name":"no_std_io2","req":"^0.9","features":[],"optional":false,"default_features":true,"target":null,"kind":null,"package":null}],"cksum":"7eff00be299a18769011411c9def0d827e8f2d7bf0c3dbf53633147a8867fd1f","features":{"alloc":["no_std_io2/alloc"],"default":["std"],"std":["alloc","no_std_io2/std"]},"yanked":false}
