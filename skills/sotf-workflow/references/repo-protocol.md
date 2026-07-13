@@ -13,6 +13,8 @@
 
 ## Useful Tools
 
+If Gitea is available use it with `tea`, if not use Github with `gh`.
+
 - `tea issues create --remote gitea ...`
 - `tea pulls create --remote gitea --base master --head <branch> ...`
 - `tea pulls edit <id> --remote gitea --description ...`

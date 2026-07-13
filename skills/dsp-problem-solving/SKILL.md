@@ -1,55 +1,31 @@
 ---
 name: dsp-problem-solving
-description: Use when analyzing or implementing signals and systems code and need to choose a DSP method or transform.
+description: Analyze signals-and-systems and DSP problems, select time-domain, Fourier, Laplace, z-domain, sampling, or adaptive-filter methods, and verify implementations. Use for CT/DT signals, LTI systems, convolution, difference/differential equations, transforms, sampling and multirate processing, frequency response, stability, or adaptive acoustic processing when the right representation is not yet clear.
 ---
 
 # DSP Problem Solving
 
-## Overview
-Classify the signal/system task and load the focused sub-skill that teaches the right technique.
+## Classify the problem
 
-## When to Use
-- The task involves continuous-time or discrete-time signals or LTI systems.
-- You need to choose between time-domain, Fourier, Laplace, or z-domain analysis.
-- You are reviewing or writing DSP code and want to avoid transform misuse.
+1. State CT versus DT, periodic versus aperiodic, deterministic versus stochastic, and LTI versus time-varying.
+2. Record the requested quantity, transform convention, units, support, initial conditions, and causality assumptions.
+3. Read [references/method-selection.md](references/method-selection.md) when choosing a representation, handling sampling, or validating adaptive/room-processing claims.
 
-## Decision Flowchart
+## Route deliberately
 
-```dot
-digraph dsp_router {
-  "Signal/system task?" [shape=diamond];
-  "Discrete-time?" [shape=diamond];
-  "Need z-domain transform?" [shape=diamond];
-  "dsp-z-transform" [shape=box];
-  "dsp-fourier-analysis" [shape=box];
+- Load `dsp-fourier-analysis` for spectra, harmonic representations, frequency response, filtering, sampling, DFT/FFT, and convolution by multiplication.
+- Load `dsp-z-transform` for DT transients, rational system functions, pole-zero/ROC reasoning, difference equations, stability, and realizations.
+- For CT differential equations or transients, use Laplace analysis directly: state bilateral/unilateral form, ROC, initial conditions, and stability criteria. Do not disguise it as Fourier analysis merely because there is no Laplace sub-skill.
+- Stay in the time domain when direct convolution, recursion, or state-space analysis is clearer and cheaper.
+- For stochastic/adaptive tasks, define the estimator, objective, stationarity assumptions, update schedule, and convergence evidence before selecting an algorithm.
 
-  "Signal/system task?" -> "Discrete-time?" [label="yes"];
-  "Discrete-time?" -> "Need z-domain transform?" [label="yes"];
-  "Need z-domain transform?" -> "dsp-z-transform" [label="yes"];
-  "Need z-domain transform?" -> "dsp-fourier-analysis" [label="no / frequency / unclear"];
-  "Discrete-time?" -> "dsp-fourier-analysis" [label="no (time domain / other)"];
-  "Signal/system task?" -> "dsp-fourier-analysis" [label="CT / sampling / other"];
-}
-```
+## Produce a checkable answer
 
-## Routing Rules
+Include the governing equation, assumptions, derivation or algorithm, units/normalization, and at least one verification. For code, also report latency, complexity, boundary behavior, numerical precision, and test vectors.
 
-1. If the system/signal is discrete-time and you need the z-transform (difference equation, H(z), ROC, stability) → load `dsp-z-transform`.
-2. For all other signal/system tasks — including continuous-time transforms, Fourier analysis, sampling, Laplace, time-domain-only analysis, or unclear/mixed CT-DT problems — load `dsp-fourier-analysis`.
+## Reject common shortcuts
 
-## Available Sub-Skills (This Cycle)
-
-The following sub-skills are implemented and ready to load:
-- `dsp-fourier-analysis`
-- `dsp-z-transform`
-
-The following sub-skills are planned for future cycles:
-- `dsp-continuous-time-lti`
-- `dsp-discrete-time-lti`
-- `dsp-laplace-transform`
-- `dsp-sampling`
-
-## Common Mistakes
-- Picking Laplace for a discrete-time problem or z-transform for a continuous-time problem.
-- Skipping the region of convergence / stability check.
-- Trying to solve a sampling problem entirely in one domain without checking the Nyquist condition.
+- Never omit the ROC from Laplace/z-transform conclusions.
+- Never infer LTI stability from pole locations without the system class and ROC/causality assumptions.
+- Never confuse DFT bin spacing with resolving power or zero-padding with added information.
+- Never claim room-EQ robustness from one point, one simulated room, or one spectral metric.

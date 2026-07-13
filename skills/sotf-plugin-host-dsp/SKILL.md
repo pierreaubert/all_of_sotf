@@ -1,30 +1,29 @@
 ---
 name: sotf-plugin-host-dsp
-description: "Use for SOTF plugin host and DSP work: sotf-plugins, sotf-host, automation, parameter registration, hot audio paths, STFT processing, channel layouts, plugin UI schemas, presets, and host/engine integration."
+description: Implement and review SOTF plugin-host and DSP behavior across sotf-plugins, sotf-host, and engine integration. Use for realtime process paths, STFT/FFT or adaptive processing, automation and smoothing, parameter registration, channel layouts, presets, external plugin hosting, plugin UI schemas, latency, or host transport/MIDI contracts.
 ---
 
 # SOTF Plugin Host DSP
 
-## When To Use
+## Working sequence
 
-Use this skill for work under `crates/sotf-plugins`, host automation, plugin process context, DSP parameter wiring, plugin review follow-ups, external plugin hosting, UI schemas for plugins, or audio-thread performance issues.
+1. Use TokenSave to locate the plugin, host contract, callers, and focused tests before reading source.
+2. Classify the change as signal behavior, block/streaming behavior, parameter metadata, UI schema, preset compatibility, or host context.
+3. Write the DSP convention and invariants: sample rate, block length, channel order, latency, overwrite/accumulate semantics, transform normalization, state reset, and parameter units.
+4. Keep allocation, locking, logging, and unbounded work out of realtime processing.
+5. Update registration, setters/getters, cached metadata, schemas, presets, and automation together when a parameter changes.
+6. Add a deterministic regression test and run focused crate checks before broader QA.
 
-## Working Sequence
+Read [references/host-dsp-checklist.md](references/host-dsp-checklist.md) for realtime, FFT/STFT, parameter, and verification guardrails.
 
-1. Use TokenSave to identify the plugin, host surface, and tests before opening source files.
-2. Determine whether the change affects DSP behavior, parameter metadata, UI layout, presets, or host transport.
-3. For DSP changes, audit allocation and locking in `process()` paths.
-4. For parameters, update registration, setters, getters, cached metadata, and tests together.
-5. Verify with focused crate tests before broader host or plugin checks.
+## DSP verification
 
-## Hot-Path Rules
+- Compare streaming output with an offline/reference calculation across varied block sizes, including partial final blocks.
+- Test impulse, silence, DC, sinusoid, step, and non-finite inputs as relevant.
+- Verify bypass, reset, sample-rate change, channel-count transition, and automation boundaries.
+- For FFT/STFT code, test window/overlap normalization, reconstruction, padding, latency, and circular-versus-linear behavior.
+- For adaptive algorithms, report convergence, tracking, latency, estimator error, and stability under nonstationary programme material; a lower loss in one scenario is not a realtime-safety result.
 
-- No per-frame allocations in audio callbacks.
-- Pre-allocate in build/setup paths and reuse buffers in process paths.
-- Avoid locking plugin mutexes per frame.
-- STFT plugins must return `context.num_frames` to avoid ring-buffer underrun unless the contract has intentionally changed.
-- Preserve channel-count transitions between plugins.
+## Handoff
 
-## References
-
-- Read `references/host-dsp-checklist.md` for parameter, preset, automation, and QA checklists.
+Report affected contracts, audible behavior, realtime-path impact, preset/schema compatibility, and exact verification commands.

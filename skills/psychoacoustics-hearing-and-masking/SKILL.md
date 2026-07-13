@@ -1,44 +1,33 @@
 ---
 name: psychoacoustics-hearing-and-masking
-description: Use when analyzing hearing thresholds, masking effects, or peripheral auditory processing.
+description: Predict or measure auditory threshold, audibility, excitation, critical-band/auditory-filter effects, simultaneous masking, forward/backward masking, partial masking, or spatial release from masking. Use for detection margins, psychoacoustic codec models, hearing-area calculations, tonal/noise maskers, temporal masking, or peripheral auditory-model implementations.
 ---
 
 # Hearing and Masking
 
-## Overview
-Predict audibility and masking using the hearing area, critical bands, and psychoacoustical tuning curves.
+## Establish the experiment/model
 
-## When to Use
-- You need the threshold in quiet for a frequency.
-- You need to predict whether a tone is masked by noise or another tone.
-- You are designing a masking model or audio codec psychoacoustic model.
+Record calibration, presentation path, listener population, target/masker spectrum and level, duration/onsets, binaural configuration, and psychophysical criterion. Choose a named threshold and auditory-filter model.
 
-## Core Pattern
+Read [references/audibility-models.md](references/audibility-models.md) for the complete workflow, implementation tests, and codec cautions.
 
-1. Identify the signal level and frequency of the target and masker.
-2. Convert frequencies to critical-band rate (Bark scale): z = 13 arctan(0.00076 f) + 3.5 arctan((f/7500)²).
-3. Determine the masked threshold from the masker level and the excitation pattern.
-4. Check if the target level exceeds the masked threshold; if not, it is inaudible.
-5. Account for temporal effects: premasking, postmasking, and overshoot.
+## Compute audibility
 
-## Quick Reference
+1. Convert stimuli to the calibrated ear-input domain.
+2. Apply threshold-in-quiet and outer/middle-ear transfer assumptions.
+3. Transform frequency using the chosen Bark/ERB/filterbank definition.
+4. Compute level-dependent excitation/spreading and tonal-versus-noise behavior.
+5. Combine maskers in the prescribed model domain.
+6. Apply temporal masking/integration and binaural processing only if the selected model supports them.
+7. Report target level minus masked threshold with uncertainty and parameter sensitivity.
 
-| Quantity | Formula / Rule |
-|----------|----------------|
-| Hearing range | 20 Hz – 20 kHz; threshold varies with frequency |
-| Bark scale | z = 13 arctan(0.00076 f) + 3.5 arctan((f/7500)²) |
-| Critical bandwidth | ≈ 100 Hz below 500 Hz; ≈ 0.2f above 500 Hz |
-| Simultaneous masking | Masker raises threshold in nearby critical bands |
-| Temporal masking | Premasking ~5 ms; postmasking ~100–200 ms |
+## Verify
 
-## Common Mistakes / Red Flags
-- Using a fixed dB threshold independent of frequency.
-- Ignoring the upward spread of masking.
-- Confusing excitation level with sound pressure level.
+Test the no-masker threshold, frequency asymmetry/upward spread, monotonicity with masker level, temporal release, low/high-frequency limits, and reference cases from the model source.
 
-## Zwicker Reference
-- Chapter 1: Stimuli and procedures
-- Chapter 2: Hearing area
-- Chapter 3: Information processing in the auditory system
-- Chapter 4: Masking
-- Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/Psycho_Acoustics-Zwicker_Fastl.md`
+## Red flags
+
+- Do not add masker levels or threshold shifts directly in dB unless the model explicitly says so.
+- Do not use a fixed critical bandwidth or universal premasking/postmasking duration.
+- Do not confuse detectability, partial masking, and loudness reduction.
+- Do not apply a monaural model to binaural unmasking without an explicit binaural stage.

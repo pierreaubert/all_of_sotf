@@ -1,43 +1,34 @@
 ---
 name: acoustics-waves-in-ducts
-description: Use when analyzing sound propagation in pipes, ducts, and one-dimensional waveguides, including reflection and transmission.
+description: Analyze pipes, ducts, horns, transmission-line acoustic networks, and one-dimensional or modal waveguides. Use for plane-wave validity and modal cutoffs, forward/backward waves, characteristic impedance, reflection/transmission, area changes, junctions, open/closed/impedance terminations, transfer or scattering matrices, mean flow, and thermoviscous attenuation.
 ---
 
 # Waves in Ducts
 
-## Overview
-Treat duct acoustics as 1D plane-wave propagation with reflection, transmission, and attenuation at boundaries and changes in cross-section.
+## Choose 1D or modal analysis
 
-## When to Use
-- You are modeling pipes, ducts, horns, or vocal tracts.
-- You need reflection/transmission coefficients at a junction.
-- You need attenuation due to viscothermal boundary layers.
+1. Define cross-section, wall condition, mean flow, frequency range, and loss model.
+2. Compute the first higher-order-mode cutoff; use the 1D plane-wave model only sufficiently below it.
+3. Distinguish specific impedance `ρ0 c` from volume-velocity impedance `ρ0 c/S`.
+4. Fix pressure and volume-flow sign conventions at every port.
 
-## Core Pattern
+Read [references/duct-models.md](references/duct-models.md) for cutoff estimates, junction workflow, network conditioning, losses, and high-level limits.
 
-1. Assume plane waves if the wavelength is much larger than the duct cross-section.
-2. Write forward and backward pressure waves: p(x,t) = A e^{j(ωt−kx)} + B e^{j(ωt+kx)}.
-3. Apply boundary conditions (rigid wall, open end, impedance Z) to find A/B.
-4. At a junction, enforce continuity of pressure and volume velocity.
-5. Add thermoviscous attenuation for narrow ducts or long runs.
+## Solve
 
-## Quick Reference
+- Write consistent forward/backward phasors and propagation constants.
+- Enforce pressure and volume-flow continuity at lossless junctions.
+- Use `R = (Z_L - Z_c)/(Z_L + Z_c)` only with compatible impedance definitions.
+- Include radiation impedance/end correction at open ends.
+- Use mode matching near discontinuities or above cutoff; evanescent modes can matter locally even when they carry no far-field power.
+- Add thermoviscous, wall, leakage, and nonlinear/orifice losses as the scale requires.
 
-| Situation | Formula |
-|-----------|---------|
-| Plane wave | p = f(x − ct) + g(x + ct) |
-| Reflection at rigid wall | R = 1 (pressure doubling at wall) |
-| Reflection at open end | R ≈ −1 (low ka, unflanged) |
-| Reflection coefficient from impedance | R = (Z − Z₀)/(Z + Z₀) |
-| Transmission at area change | T = 2Z₂/(Z₁ + Z₂) (pressure) |
-| Volume velocity | U = p S/(ρ₀c) for plane wave |
+## Verify
 
-## Common Mistakes / Red Flags
-- Using 3D spherical spreading formulas inside a duct.
-- Assuming an open end is perfectly pressure-release without radiation correction.
-- Ignoring higher-order duct modes at high frequency.
+Check rigid/open limiting cases, lossless power balance, passivity, reciprocity where applicable, and convergence with modal truncation or spatial resolution. Validate resonances and attenuation against a transfer-matrix calculation, simulation, or measurement.
 
-## Rienstra Reference
-- Chapter 4: One dimensional acoustics
-- Chapter 7: Duct acoustics
-- Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/An_Introduction_to_Acoustics.md`
+## Red flags
+
+- Never use spherical `1/r²` spreading inside a uniform lossless duct.
+- Never treat an open end as exactly pressure release across all frequencies.
+- Never apply a smooth-horn approximation to a sharp discontinuity without checking error.

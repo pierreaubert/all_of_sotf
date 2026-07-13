@@ -1,50 +1,31 @@
 ---
 name: psychoacoustics-pitch-timbre-roughness
-description: Use when analyzing pitch, timbre, roughness, fluctuation strength, sharpness, or subjective duration.
+description: Analyze or implement perceptual models of pitch and pitch strength, virtual/missing-fundamental pitch, multidimensional timbre, sharpness, sensory pleasantness, fluctuation strength, roughness, beating, or subjective duration. Use for audio-feature interpretation, sound-quality metrics, modulation perception, timbre comparisons, or controlled listening-test design.
 ---
 
-# Pitch, Timbre, and Roughness
+# Pitch, Timbre, and Modulation Attributes
 
-## Overview
-Map spectral and temporal signal properties to the corresponding perceptual attributes: pitch, timbre, roughness, fluctuation, sharpness, and subjective duration.
+## Identify the attribute
 
-## When to Use
-- You need to estimate pitch or pitch salience of a tone or complex sound.
-- You are analyzing timbre, dissonance, or sensory pleasantness.
-- You need roughness, fluctuation strength, or sharpness metrics.
+Separate the requested percept from acoustic proxies and likely confounds. State calibration, listener population, duration, temporal variation, and whether stimuli are level- and pitch-matched.
 
-## Core Pattern
+Read [references/attributes.md](references/attributes.md) for cue selection, model workflow, confounds, and spatial-playback cautions.
 
-1. Identify the attribute:
-   - Pitch → spectral periodicity or fundamental frequency.
-   - Timbre → spectral envelope and temporal envelope (everything besides pitch/loudness).
-   - Roughness → rapid amplitude or frequency modulation (~20–200 Hz).
-   - Fluctuation strength → slower modulation (~0.5–20 Hz).
-   - Sharpness → high-frequency energy concentration.
-2. Choose the appropriate model (e.g., virtual pitch, Terhardt model; roughness model; DIN 45692 sharpness).
-3. Compute the feature from the excitation pattern or spectrogram.
-4. Report units where defined (e.g., vacil for fluctuation, asper for roughness, acum for sharpness).
+## Analyze
 
-## Quick Reference
+- For pitch, test harmonicity/periodicity and resolved/unresolved components; include virtual pitch for missing fundamentals.
+- For timbre, preserve spectral envelope, attack/decay, modulation, and time variation; report multiple interpretable dimensions or a task-defined embedding.
+- For sharpness, start from a calibrated loudness/excitation representation, not spectral centroid alone.
+- For fluctuation strength and roughness, analyze modulation within auditory channels and use the selected model’s rate/level dependence.
+- For subjective duration, include onset/offset and level/temporal context.
 
-| Attribute | Typical model / cue | Unit |
-|-----------|---------------------|------|
-| Pure tone pitch | Matches fundamental frequency | mel / Hz |
-| Virtual pitch | Terhardt / autocorrelation of resolved harmonics | Hz |
-| Roughness | Modulation depth × frequency separation | asper |
-| Fluctuation strength | Slow modulation depth and frequency | vacil |
-| Sharpness | Weighted centroid of specific loudness | acum |
-| Subjective duration | Temporal integration ~100–200 ms | — |
+## Verify
 
-## Common Mistakes / Red Flags
-- Estimating pitch from spectral peak alone for missing-fundamental sounds.
-- Confusing roughness (fast modulation) with fluctuation strength (slow modulation).
-- Treating timbre as a single number; it is multidimensional.
+Use synthetic controls: missing-fundamental complexes, equal-loudness spectral tilts, two-tone beating, AM-rate sweeps, and matched physical-duration stimuli. Compare against reference implementations or listening data and report model validity bounds.
 
-## Zwicker Reference
-- Chapter 5: Pitch and pitch strength
-- Chapter 9: Sharpness and sensory pleasantness
-- Chapter 10: Fluctuation strength
-- Chapter 11: Roughness
-- Chapter 12: Subjective duration
-- Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/Psycho_Acoustics-Zwicker_Fastl.md`
+## Red flags
+
+- Do not estimate pitch from only the largest FFT bin.
+- Do not define roughness and fluctuation strength by universal hard modulation cutoffs.
+- Do not call a one-number spectral descriptor “timbre.”
+- Do not attribute room-EQ preference to timbre when loudness, DRR, or apparent distance also changed.

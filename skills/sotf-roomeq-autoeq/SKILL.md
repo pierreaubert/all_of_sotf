@@ -1,30 +1,34 @@
 ---
 name: sotf-roomeq-autoeq
-description: "Use for SOTF RoomEQ and AutoEQ work: measurement parsing, smoothing, optimizer behavior, passband detection, target curves, IIR/FIR export, CamillaDSP/convolution sidecars, Linux measurement streams, and RoomEQ QA."
+description: Implement and validate SOTF RoomEQ and AutoEQ measurement, optimization, filtering, and export workflows. Use for measurement parsing or streams, response-grid alignment, smoothing, passband and target curves, multi-position optimization, IIR/FIR design, RoomEQ UI/reporting, convolution or CamillaDSP export, adaptive/online room response work, and RoomEQ QA.
 ---
 
-# SOTF RoomEQ AutoEQ
+# SOTF RoomEQ and AutoEQ
 
-## When To Use
+## Working sequence
 
-Use this skill for changes involving `crates/autoeq`, RoomEQ UI/reporting in `crates/app-gpui`, RoomEQ plugin behavior, measurement import/export, CamillaDSP output, convolution artifacts, smoothing, target curves, or multi-measurement optimization.
+1. Start with `tokensave_context` using the concrete RoomEQ terms, then locate data contracts, call paths, and tests.
+2. Record measurement calibration, sample rate, frequency range/grid, smoothing, channel/position identity, and uncertainty before changing math.
+3. Keep algorithm changes in the math/AutoEQ layer and app crates as presentation/coordination surfaces.
+4. Define the optimization objective, parameter bounds, regularization, spatial aggregation, phase/latency treatment, and expected artifact contract.
+5. Add a deterministic regression fixture for the exact data shape and run focused tests before broad QA.
 
-## Working Sequence
+Read [references/invariants-and-commands.md](references/invariants-and-commands.md) for repository contracts, research-derived guardrails, and verification commands.
 
-1. Start with `tokensave_context` using RoomEQ-specific terms from the user request.
-2. Locate the data contract first: input schema, output schema, measurement bounds, or export format.
-3. Keep algorithm fixes close to the math/autoeq layer; keep app crates as thin presentation surfaces.
-4. Add regression coverage around the exact data shape that failed.
-5. Run a targeted test before any broader QA.
+## Core invariants
 
-## Invariants
+- Keep filters inside trustworthy measurement-data frequency bounds.
+- Use relative-to-peak thresholds for passband detection.
+- Use `autoeq_iir::Biquad` as the core filter type.
+- Align or resample mismatched response grids explicitly; never zip by index without proving equality.
+- Preserve convolution, CamillaDSP, report, and sidecar contracts.
+- Optimize no finer than the measurement/smoothing resolution warrants.
+- Separate minimum-phase/magnitude correction from excess-phase, time-domain, and spatial-control claims.
 
-- Filters must stay within measurement-data frequency bounds.
-- Passband detection uses relative-to-peak thresholds, not absolute dB values.
-- Core filter type is `autoeq_iir::Biquad`.
-- Handle mismatched response grids explicitly; do not assume equal frequency vectors.
-- Preserve sidecar/export contracts for convolution, CamillaDSP, and report rendering.
+## Validation dimensions
 
-## References
+Evaluate raw and smoothed response, target error, filter gain/Q/count, time response/ringing, headroom, latency, robustness across positions, and export round-trip. For perceptual claims, level-match and test timbre/spatial attributes rather than relying on one spectral score.
 
-- Read `references/invariants-and-commands.md` for RoomEQ commands, known files, and common failure modes.
+## Handoff
+
+Report the measurement assumptions, algorithmic change, affected exports/UI, before/after objective values, spatial/time-domain tradeoffs, and exact QA commands.

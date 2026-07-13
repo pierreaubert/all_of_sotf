@@ -1,6 +1,6 @@
 # RoomEQ and AutoEQ Reference
 
-## Common Areas
+## Common areas
 
 - `crates/autoeq`
 - `crates/autoeq/bin/roomeq`
@@ -9,7 +9,34 @@
 - `crates/sotf-plugins/crates/sotf-plugin-xtc`
 - `crates/sotf-player` when library or measurement flow affects RoomEQ inputs
 
-## Frequent Checks
+## Data and optimizer guardrails
+
+- Preserve calibration and distinguish dB amplitude, dB power, linear magnitude, and complex transfer data.
+- Check actual data bounds, invalid bins, duplicate/unsorted frequencies, sparse regions, and mismatched grids.
+- State smoothing domain and bandwidth; include edge behavior and grid-invariance tests.
+- Constrain gain, Q, frequency, count, headroom, and correction bandwidth; penalize solutions that fit noise or create excessive ringing.
+- Treat deep narrow nulls and position-specific cancellations as poor inversion targets.
+- Evaluate every measurement position plus the aggregate; record the sweet-spot/spatial-robustness tradeoff.
+- Inspect impulse/step response and latency as well as magnitude error.
+
+## Lessons from the bundled room literature
+
+- Distance-weighted multi-position prototypes can improve a preferred position without losing area robustness, but the published work still calls for perceptual validation (`books/2409.10131.md`).
+- Phase features can improve blind RT/volume estimation, but results are dataset/model dependent (`books/2303.07449.md`).
+- Exact shoebox-ISM inversion is demonstrated for low-passed simulated multichannel RIRs, not arbitrary measured rooms (`books/2405.03385.md`).
+- Sparse magnitude-field reconstruction is not complex-field reconstruction and was evaluated only within its training/test regime (`books/2605.10398.md`).
+- Sound-speed drift can invalidate phase-sensitive multichannel control; record environmental/calibration assumptions (`books/2602.16416.md`).
+- Adaptive DDSP room EQ exposes frame-size, computation, tracking, estimator, and optimizer-stability tradeoffs (`books/2606.22563.md`).
+- Spectral correction alone does not control DRR or apparent distance; spatial compensation requires separate design and listening evidence (`books/2604.12439.md`).
+
+## Export guardrails
+
+- Assert primary files and sidecars.
+- For CamillaDSP, verify channel names, filter ordering, gains, rates, paths, and downstream parsing.
+- For convolution, verify sample rate, channel layout, normalization/headroom, latency, length, and artifact existence.
+- For Linux streams, verify sample formats such as S24, endianness, interleaving, and short-read behavior.
+
+## Frequent checks
 
 - `cargo test -p autoeq roomeq`
 - `cargo test -p autoeq spectral`
@@ -17,19 +44,4 @@
 - `just qa-autoeq`
 - `just qa-roomeq-quick`
 - `just qa-roomeq-multi-measurement`
-- `just qa-roomeq-ci` for broader CI-style RoomEQ validation when available.
-
-## Data and Export Guardrails
-
-- Check the real measurement frequency range before optimizer changes.
-- If smoothing changes, include tests for mismatched frequency grids and sparse data.
-- For export fixes, assert both primary files and sidecars.
-- For CamillaDSP output, verify channel naming, filter ordering, and paths expected by downstream consumers.
-- For Linux measurement streams, verify sample format assumptions such as S24 handling.
-
-## Debugging Pattern
-
-1. Reproduce from the smallest measurement/export fixture possible.
-2. Inspect the generated DSP output, not only the UI report.
-3. Compare before/after filter counts, frequency bounds, and channel maps.
-4. Prefer deterministic fixtures over broad golden churn.
+- `just qa-roomeq-ci`

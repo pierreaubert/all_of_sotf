@@ -7,7 +7,7 @@ description: "Use for SOTF repository planning and implementation workflow: Toke
 
 ## Core Flow
 
-Use this skill whenever work is in `/Users/pierre/src/sotf` or another SOTF worktree and the task involves planning, implementing, reviewing, committing, or opening a PR.
+Use this skill whenever work is in `gpui-toolkit`, `math-audio`, `autoeq`, `sotf` or derived worktree and the task involves planning, implementing, reviewing, committing, or opening a PR.
 
 1. Start code research with TokenSave tools before reading source files.
 2. For each new implementation plan, create or identify the corresponding issue before coding.

@@ -1,41 +1,32 @@
 ---
 name: psychoacoustics-loudness
-description: Use when calculating or estimating loudness, loudness level, or designing loudness meters.
+description: Calculate, implement, or validate psychoacoustic loudness and loudness level for stationary or time-varying sounds. Use for sone, phon, specific loudness, equal-loudness comparisons, ISO 532 Zwicker or Moore–Glasberg models, partial masking effects, calibrated audio-file loudness estimates, or distinguishing psychoacoustic loudness from A-weighted SPL and LUFS.
 ---
 
 # Loudness
 
-## Overview
-Estimate the perceived loudness of a sound by converting level and spectrum into specific loudness across critical bands and summing.
+## Choose the metric
 
-## When to Use
-- You need a loudness estimate for a sound or audio file.
-- You are implementing a loudness meter (e.g., ISO 532-1 / Zwicker model).
-- You need to compare loudness of sounds with different spectra.
+State whether the target is SPL, loudness level (phon), loudness (sone), specific loudness, or programme loudness. Name the standard/model, edition, presentation field, input calibration, and requested temporal statistic.
 
-## Core Pattern
+Read [references/loudness-practice.md](references/loudness-practice.md) for metric distinctions, model workflow, validation, and room/playback cautions.
 
-1. Measure or compute the 1/3-octave or FFT-based sound pressure level per critical band.
-2. Convert each band level to specific loudness N' (sone/Bark), accounting for threshold in quiet.
-3. Sum specific loudness over all audible Bark bands: N = Σ N' Δz.
-4. For time-varying sounds, apply temporal integration (attack/release time constants).
-5. Convert to loudness level in phon if needed: equal-loudness contours at 1 kHz.
+## Compute
 
-## Quick Reference
+1. Convert the signal or band levels to calibrated ear-input levels.
+2. Apply the selected free-/diffuse-field or headphone correction.
+3. Form the required spectrum or third-octave representation.
+4. Apply threshold, excitation, level-dependent compression, and specific-loudness stages exactly as specified.
+5. Integrate on the model’s auditory scale.
+6. Apply temporal integration for time-varying sounds and report the defined statistic.
 
-| Quantity | Unit | Note |
-|----------|------|------|
-| Loudness | sone | Perceived magnitude; doubles every ~10 phon |
-| Loudness level | phon | Matched level of a 1 kHz tone |
-| Specific loudness | sone/Bark | Loudness density per critical band |
-| 1 sone | 40 phon at 1 kHz | Reference point |
-| Doubling loudness | +10 phon | Approximate rule of thumb |
+## Verify
 
-## Common Mistakes / Red Flags
-- Using A-weighted SPL as a proxy for loudness.
-- Ignoring spectral distribution and critical bands.
-- Forgetting temporal integration for time-varying signals.
+Use published reference cases or a trusted implementation; test a 1 kHz reference, monotonic level sweeps, bandwidth changes, equal-energy spectra, and attack/release behavior. Record filterbank resolution, interpolation, sample rate, and tolerances.
 
-## Zwicker Reference
-- Chapter 8: Loudness
-- Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/Psycho_Acoustics-Zwicker_Fastl.md`
+## Red flags
+
+- Do not substitute A-weighted SPL or LUFS for psychoacoustic loudness.
+- Do not use the phon-to-sone rule as the whole spectral model.
+- Do not mix ISO 532-1 and ISO 532-2 stages or constants.
+- Do not compare room-correction conditions without level matching and separate spatial/timbral assessment.

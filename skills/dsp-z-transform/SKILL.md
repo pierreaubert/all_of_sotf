@@ -1,50 +1,28 @@
 ---
 name: dsp-z-transform
-description: Use when analyzing discrete-time LTI systems or signals with the z-transform, including system functions, ROC, and stability.
+description: Analyze or implement discrete-time sequences and LTI systems with bilateral or unilateral z-transforms. Use for rational system functions, regions of convergence, inverse transforms, poles and zeros, causality/BIBO stability, difference equations with or without initial conditions, frequency response, block diagrams, IIR realizations, or numerical filter checks.
 ---
 
-# Z-Transform
+# z-Transform
 
-## Overview
-Move a discrete-time problem to the z-domain, solve algebraically, then interpret the result through the region of convergence.
+## Core workflow
 
-## When to Use
-- You have a difference equation or discrete-time LTI system.
-- You need the system function H(z), impulse response, or stability.
-- You need to solve a discrete-time convolution problem more easily.
+1. Define `X(z) = Σ x[n]z^{-n}` and state bilateral or unilateral form.
+2. Derive the algebraic expression and the ROC together.
+3. Infer sidedness, causality, DTFT existence, and stability from both poles and ROC.
+4. Invert by a method consistent with the ROC.
+5. For an LTI system under initial rest, form `H(z) = Y(z)/X(z)`; for nonzero initial state, retain unilateral shift terms.
+6. Verify samples in the original recurrence and evaluate `H(e^{jΩ})` only when the unit circle belongs to the ROC.
 
-## Core Pattern
+Read [references/z-transform-practice.md](references/z-transform-practice.md) for ROC rules, initial conditions, inverse methods, and realization checks.
 
-1. Write the difference equation in terms of x[n] and y[n].
-2. Take the z-transform of both sides, using the time-shift property: y[n-k] ↔ z^{-k}Y(z).
-3. Solve for the system function H(z) = Y(z)/X(z).
-4. Determine the ROC from causality / stability requirements.
-5. Use partial-fraction expansion to invert H(z) to h[n].
-6. Verify stability: causal system is stable iff all poles are inside the unit circle (|z| < 1).
+## Implementation workflow
 
-## Quick Reference
+Normalize the denominator, derive coefficient signs from the recurrence, choose direct/cascade/SOS/parallel form intentionally, and test impulse response, frequency response, stability margins, quantization, state scaling, and finite-value behavior. Prefer SOS for higher-order floating-point IIR filters.
 
-### Pairs
-| Signal | Z-transform | ROC |
-|--------|-------------|-----|
-| δ[n] | 1 | all z |
-| u[n] | 1/(1 - z^{-1}) | \|z\| > 1 |
-| a^n u[n] | 1/(1 - az^{-1}) | \|z\| > \|a\| |
-| -a^n u[-n-1] | 1/(1 - az^{-1}) | \|z\| < \|a\| |
+## Red flags
 
-### Properties
-| Property | Formula |
-|----------|---------|
-| Time shift | x[n-k] ↔ z^{-k}X(z) |
-| Convolution | x[n] * h[n] ↔ X(z)H(z) |
-| Initial value | x[0] = lim_{z→∞} X(z) if x[n] causal |
-
-## Common Mistakes / Red Flags
-- Forgetting the ROC; the same algebraic H(z) can represent different sequences.
-- Assuming causality without checking.
-- Declaring stability without verifying poles are inside the unit circle.
-- Using CT stability rules (left half-plane) for a DT system.
-
-## Oppenheim Reference
-- Chapter 10: The z-Transform
-- Source file: `/Volumes/home_ext1/src_pierre/all_of_sotf/books/Signals_and_Systems_2nd_Edition_by_Oppen.md`
+- The same rational expression with different ROCs represents different sequences.
+- “Poles inside the unit circle” does not prove stability unless causality/right-sidedness is established.
+- Bilateral time shifting does not encode nonzero initial conditions.
+- Pole-zero cancellation in the transfer function can hide unstable internal modes in a nonminimal realization.

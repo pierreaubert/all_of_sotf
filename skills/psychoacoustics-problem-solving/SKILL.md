@@ -1,51 +1,30 @@
 ---
 name: psychoacoustics-problem-solving
-description: Use when analyzing or implementing human auditory perception problems and need to choose the right psychoacoustics sub-skill.
+description: Analyze human auditory-perception questions and select audibility/masking, loudness, pitch, timbre, sharpness, roughness, fluctuation-strength, or duration models. Use for perceptual audio metrics, listening-test design, codec or audio-product models, room-correction perception, or any task where calibration, listener population, stimulus context, and model validity determine the answer.
 ---
 
 # Psychoacoustics Problem Solving
 
-## Overview
-Classify the perceptual task by the auditory attribute involved, then load the focused sub-skill that covers it.
+## Define the observation
 
-## When to Use
-- The task involves how humans hear loudness, pitch, timbre, masking, or roughness.
-- You need to choose a perceptual model for an audio product or DSP algorithm.
-- You are interpreting thresholds, masking curves, or loudness meter outputs.
+1. Name the perceptual attribute and distinguish it from its acoustic correlate.
+2. State listener population, monaural/binaural presentation, field/headphone transfer, calibration, spectrum, level, duration, and temporal context.
+3. Choose a named standard/model and edition; do not merge formulas from incompatible auditory scales or standards.
 
-## Decision Flowchart
+## Route by attribute
 
-```dot
-digraph psychoacoustics_router {
-  "Perceptual task?" [shape=diamond];
-  "Threshold / masking / hearing area?" [shape=diamond];
-  "Loudness / level?" [shape=diamond];
-  "psychoacoustics-hearing-and-masking" [shape=box];
-  "psychoacoustics-loudness" [shape=box];
-  "psychoacoustics-pitch-timbre-roughness" [shape=box];
+- Load `psychoacoustics-hearing-and-masking` for threshold in quiet, critical bands/auditory filters, excitation, simultaneous/temporal masking, detection, or codec audibility.
+- Load `psychoacoustics-loudness` for phon/sone/specific loudness, partial masking, stationary/time-varying loudness, or psychoacoustic meter design.
+- Load `psychoacoustics-pitch-timbre-roughness` for pitch/pitch strength, timbre, sharpness, sensory pleasantness, fluctuation strength, roughness, or subjective duration.
+- Combine skills when masking changes loudness, room correction changes timbre and distance, or pitch salience depends on audibility.
 
-  "Perceptual task?" -> "Threshold / masking / hearing area?" [label="yes"];
-  "Threshold / masking / hearing area?" -> "psychoacoustics-hearing-and-masking" [label="yes"];
-  "Threshold / masking / hearing area?" -> "Loudness / level?" [label="no"];
-  "Loudness / level?" -> "psychoacoustics-loudness" [label="yes"];
-  "Loudness / level?" -> "psychoacoustics-pitch-timbre-roughness" [label="no / pitch / timbre / roughness"];
-}
-```
+## Validate perceptual claims
 
-## Routing Rules
+Use reference stimuli or published model cases, sensitivity analysis, and controlled listening tests when claiming listener benefit. Level-match comparisons unless loudness is the independent variable; randomize order, define anchors, report uncertainty and listener exclusions, and separate objective metric improvement from preference or audibility.
 
-1. If the task involves hearing thresholds, masking, tuning curves, or peripheral processing → load `psychoacoustics-hearing-and-masking`.
-2. If the task involves loudness, partial masking, or loudness meters → load `psychoacoustics-loudness`.
-3. If the task involves pitch, timbre, sharpness, roughness, fluctuation strength, or subjective duration → load `psychoacoustics-pitch-timbre-roughness`.
-4. If the perceptual task is mixed or unclear, start with `psychoacoustics-hearing-and-masking`.
+## Red flags
 
-## Implemented Sub-Skills
-
-- `psychoacoustics-hearing-and-masking`
-- `psychoacoustics-loudness`
-- `psychoacoustics-pitch-timbre-roughness`
-
-## Common Mistakes
-- Estimating loudness from SPL alone without frequency weighting.
-- Confusing partial masking with complete inaudibility.
-- Using linear frequency scales for perceptual pitch or critical-band problems.
+- Never use A-weighted SPL as universal loudness.
+- Never treat critical-band, Bark, ERB, and mel scales as interchangeable.
+- Never turn a population-average threshold into a guarantee for an individual.
+- Never infer spatial or timbral preference from spectral error alone.
