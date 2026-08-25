@@ -5,12 +5,6 @@ __pycache__
 
 node_modules
 
-/autoeq
-/gpui-toolkit
-/math-audio
-/sofa-reader
-/sotf
-/symphonia-add-ons
 /target
 /books
 /buildbot
