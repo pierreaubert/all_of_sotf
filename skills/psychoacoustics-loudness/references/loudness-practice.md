@@ -31,3 +31,7 @@ Room compensation can change timbre, DRR, and spatial impression without equival
 ## Primary source
 
 Read `books/Psycho_Acoustics-Zwicker_Fastl.md`, Chapters 6–8 for critical-band excitation, partial masking, and loudness.
+
+## Toole corroboration (room-reproduction context)
+
+From *Sound Reproduction*, 3rd ed., §4.4 (local OCR: `books/Toole_Sound_Reproduction_3ed.md`): loudness is the perceptual correlate of level but also depends on frequency, incident angle, signal duration, and temporal envelope. The equal-loudness contours originate in Fletcher and Munson (1933) headphone experiments matching pure tones to a 1 kHz reference, with each contour labeled in phons (the reference SPL) rather than decibels. Practical consequence used throughout the book: playback below the reference/monitoring level shifts the perceived spectral balance, so loudness comparisons and correction evaluations must be level-matched.

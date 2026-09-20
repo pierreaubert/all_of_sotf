@@ -27,3 +27,11 @@ Masking is asymmetric in frequency and level-dependent. Tonal and noise maskers 
 ## Primary source
 
 Read `books/Psycho_Acoustics-Zwicker_Fastl.md`, Chapters 1–4 and 6 for procedures, hearing area, nonlinear peripheral processing, masking, critical bands, and excitation.
+
+## Toole corroboration (room-reproduction context)
+
+From *Sound Reproduction*, 3rd ed. (local OCR: `books/Toole_Sound_Reproduction_3ed.md`):
+
+- Resonance audibility follows the amplitude bump: transducer resonances are minimum-phase, so bump height and shape predict the localized phase anomaly and ringing, with spectrally broad (low-Q) resonances the most audible (§4.6.2).
+- Real-program masking is stronger than probe-tone masking: music's dense wideband spectrum masks distortion products that sine probes leave spectrally exposed, so technical distortion numbers that ignore masking overstate audibility (Fig. 4.18 discussion).
+- Masking spreads upward: a loud bass sound masks much of the spectrum above it, including the voice range — the reason lyrics/dialog can vanish under bass-heavy program. Difference (intermodulation) products fall where masking is weakest, making them more audible and more annoying than the harmonic products of the same nonlinearity.

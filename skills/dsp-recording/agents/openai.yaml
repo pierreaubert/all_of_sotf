@@ -1,0 +1,3 @@
+interface:
+  display_name: "Acoustic Measurement Recording"
+  short_description: "Capture calibrated room and loudspeaker measurements"

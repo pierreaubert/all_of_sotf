@@ -32,3 +32,7 @@ Room correction that changes DRR or early/late energy can alter apparent distanc
 ## Primary source
 
 Read `books/Psycho_Acoustics-Zwicker_Fastl.md`, Chapters 5 and 9–12 for pitch, sharpness, sensory pleasantness, fluctuation strength, roughness, and subjective duration.
+
+## Toole corroboration (room-reproduction context)
+
+From *Sound Reproduction*, 3rd ed. (local OCR: `books/Toole_Sound_Reproduction_3ed.md`): resonances change timbre because their delayed energy is added to the program on every note — mid-frequency resonances are the most obvious since they color voices and many instruments. Beats and roughness differences contribute to distinctiveness, so a reproducing system with spectral variations inside a single critical band or ERBn can shift timbre (Figs. 4.15–4.16 discussion). When judging room-EQ or loudspeaker changes, attribute timbre shifts to resonances first and verify against direct-sound evidence rather than the steady-state room curve.

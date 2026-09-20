@@ -1,0 +1,3 @@
+interface:
+  display_name: "Room EQ and Processing"
+  short_description: "Diagnose rooms and design verified acoustic correction"

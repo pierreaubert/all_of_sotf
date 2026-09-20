@@ -29,6 +29,10 @@ Use this skill whenever work is in `gpui-toolkit`, `math-audio`, `autoeq`, `sotf
 - Do not revert, reset, or overwrite changes you did not make.
 - Before touching files with existing modifications, inspect the diff and work with those edits.
 - Prefer non-interactive git commands.
+- When `/Volumes/home_worktrees` exists, create SOTF worktrees beneath it. Otherwise, use an appropriate location outside the user's active checkout.
+- When `/Volumes/home_tmp` exists, place task-specific temporary directories beneath `/Volumes/home_tmp/tmp`.
+- When `/Volumes/home_tmp` exists, also place Cargo target directories beneath `/Volumes/home_tmp/tmp`, unless `mbx` is available; in that case, prefer the `mbx` cache for Cargo build artifacts.
+- Do not use `/tmp` or `/private/tmp` when `/Volumes/home_tmp` exists.
 
 ## References
 
