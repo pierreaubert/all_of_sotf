@@ -1,6 +1,11 @@
 # Loudness Pressure Scenarios
 
 ## Scenario A
+
+**Qualification:** The band span and total dBA do not fully specify the noise
+spectrum. For broadly distributed noise, loudness summation can support the
+expected tendency below; do not assert an unconditional ranking or sone value
+without spectral distribution, field, duration and a specified model.
 **Prompt:** Two steady sounds both measure 70 dBA-weighted SPL. Sound A is a 1 kHz pure tone. Sound B is a broadband noise covering 50 Hz–10 kHz. Which is likely louder in sones, and why? What must a loudness model do that the A-weighted SPL cannot?
 
 **Expected with skill:**
@@ -14,5 +19,18 @@
 > A loudness model must analyze the spectrum into critical/1/3-octave bands, convert each band level to specific loudness accounting for threshold in quiet and nonlinear level-to-loudness, and integrate across Bark bands. A-weighted SPL cannot do this.
 
 ## Verification
-**PASS** — response matches expected key points (broadband noise louder, critical-band summation, specific loudness integration, A-weighting limitations).
+**Historical result: qualified** — the response identifies loudness summation
+but assumes a broadly distributed spectrum. The ranking is not determined by
+the two dBA values alone; this annotation is not a rerun.
 
+## Scenario B: Loudness compensation from a volume knob
+
+**Prompt:** "My volume is at −20 dB. Invert the 60-phon curve to restore correct
+music balance and use equal LUFS to verify the subwoofer headroom."
+
+**Expected:** The knob does not establish acoustic SPL. A single inverted contour
+is not a universal compensation curve; reference/listening levels, programme
+and model assumptions are needed. Keep optional compensation separate from room
+calibration. LUFS does not certify acoustic sub output or peak headroom.
+
+**Status:** Review case added; not independently executed.

@@ -1,5 +1,22 @@
 # Psychoacoustics Router Pressure Scenarios
 
+## Toole-derived review case: choose the experiment, not just the metric
+
+**Prompt:** "Preset A has lower room-response RMS error and wins a sighted stereo
+demo. Prove its excess-phase FIR improves timbre for all listeners. Can we test
+mono by feeding the same signal to L and R?"
+
+**Expected:** Neither metric error nor a sighted preference establishes the claim.
+Separate detection, preference and attribution; control level, magnitude, playback
+mode and order. Single-source mono can help diagnose timbre, while L+R coherent
+playback adds summation and is a different condition. Test spatial performance
+in the intended format and report listener/programme variation rather than a
+universal conclusion. Route timbre analysis to the attribute skill and matching
+to loudness guidance as needed.
+
+**Status:** Review case added; not independently executed. Historical routing
+results below predate this addition.
+
 ## Scenario A: Masking in a codec
 **Prompt:** "A 1 kHz tone at 50 dB SPL is masked by broadband noise at 60 dB SPL. Is it audible?"
 **Expected:** Agent loads `psychoacoustics-hearing-and-masking`.
@@ -42,4 +59,3 @@
 
 ## Summary
 All three scenarios routed to the expected sub-skills. No `SKILL.md` patch was required.
-

@@ -34,4 +34,35 @@ Read `books/Psycho_Acoustics-Zwicker_Fastl.md`, Chapters 6–8 for critical-band
 
 ## Toole corroboration (room-reproduction context)
 
+### Playback-level compensation and matching
+
+Focused source check: Toole, third edition, sections 3.5.1.5–3.5.1.6,
+4.4–4.4.1, 12.3 and 14.2, local `books/toole3rd/toole_ocr` files 72–74,
+90–93, 348–349 and 378–383. These are OCR indices, not printed pages.
+Treat figure values and historical standards as source context, not newly
+verified numerical data or current normative requirements.
+
+- Equal-loudness contours compare tones under defined conditions. Do not invert
+  one contour as a universal music-EQ target. A level-compensation hypothesis
+  concerns differences between contours at calibrated reference and listening
+  levels; it still needs validation with the intended broadband programme.
+- One fixed shelf cannot preserve the loudness relationships of every component
+  of music with a wide dynamic range. Offer bounded, user-adjustable compensation
+  as a compromise, distinct from room calibration. A volume-control setting or
+  digital LUFS value alone does not identify acoustic reference level at the ears.
+- Avoid automatic treble boost justified solely by the shape of an absolute
+  equal-loudness contour. Use the level-dependent change, the applicable model
+  and listener evidence; do not infer a universal bass/treble amount from Toole's
+  illustrative settings or listener-average preferred curve.
+- State whether matching means equal measured SPL, model loudness, or a listener
+  match. Document signal spectrum, weighting, averaging, seat and absolute level.
+  Different spectral balances can make one calibration imperfect for another
+  signal. Keep pre-normalization output/headroom data separately from matched
+  timbre comparisons.
+- A common programme-loudness number is not evidence of equal bass impact,
+  acoustic headroom, or individual loudness. For multichannel programme metrics,
+  follow the selected standard's channel weights and LFE treatment exactly;
+  assess sub/LFE output and protection separately rather than silently modifying
+  the standardized metric.
+
 From *Sound Reproduction*, 3rd ed., §4.4 (local OCR: `books/Toole_Sound_Reproduction_3ed.md`): loudness is the perceptual correlate of level but also depends on frequency, incident angle, signal duration, and temporal envelope. The equal-loudness contours originate in Fletcher and Munson (1933) headphone experiments matching pure tones to a 1 kHz reference, with each contour labeled in phons (the reference SPL) rather than decibels. Practical consequence used throughout the book: playback below the reference/monitoring level shifts the perceived spectral balance, so loudness comparisons and correction evaluations must be level-matched.

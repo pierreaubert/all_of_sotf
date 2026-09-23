@@ -20,6 +20,11 @@ description: Analyze human auditory-perception questions and select audibility/m
 
 ## Validate perceptual claims
 
+For loudspeaker/room comparisons, test design, or interpreting phase and
+spatial-perception claims, read [listening evidence](references/listening-evidence.md).
+Separate detection, attribute ratings, preference, and fidelity; a single-source
+mono timbre test and a multichannel spatial test answer different questions.
+
 Use reference stimuli or published model cases, sensitivity analysis, and controlled listening tests when claiming listener benefit. Level-match comparisons unless loudness is the independent variable; randomize order, define anchors, report uncertainty and listener exclusions, and separate objective metric improvement from preference or audibility. Toole (§3.1; local OCR `books/Toole_Sound_Reproduction_3ed.md`) shows why: sighted evaluations let brand, appearance, price, and louder playback decide, with "different" or louder routinely passing as better in the absence of equal-loudness comparison — so conceal product identities in any preference or audibility test.
 
 ## Red flags

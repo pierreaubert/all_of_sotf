@@ -32,6 +32,38 @@ Read `books/Psycho_Acoustics-Zwicker_Fastl.md`, Chapters 1–4 and 6 for procedu
 
 From *Sound Reproduction*, 3rd ed. (local OCR: `books/Toole_Sound_Reproduction_3ed.md`):
 
-- Resonance audibility follows the amplitude bump: transducer resonances are minimum-phase, so bump height and shape predict the localized phase anomaly and ringing, with spectrally broad (low-Q) resonances the most audible (§4.6.2).
-- Real-program masking is stronger than probe-tone masking: music's dense wideband spectrum masks distortion products that sine probes leave spectrally exposed, so technical distortion numbers that ignore masking overstate audibility (Fig. 4.18 discussion).
-- Masking spreads upward: a loud bass sound masks much of the spectrum above it, including the voice range — the reason lyrics/dialog can vanish under bass-heavy program. Difference (intermodulation) products fall where masking is weakest, making them more audible and more annoying than the harmonic products of the same nonlinearity.
+- For a simple minimum-phase resonance, magnitude shape and ringing are linked;
+  neither peak height nor decay duration alone supplies an audibility threshold.
+  Bandwidth/Q, frequency, stimulus spectrum, persistence, and reflections matter.
+  Low-Q peaks can be detected at smaller heights, but high-Q defects can become
+  conspicuous when programme energy excites them (§4.6.2). Do not classify a
+  complete multi-driver speaker-room transfer as minimum-phase on this basis.
+- Dense programme can mask products that sparse test tones expose. THD/IMD
+  percentages without product spectra, level and masking context do not establish
+  audibility or preference. Section 4.9's comparison is not a guarantee that music
+  masks all distortion or that intermodulation always sounds worse.
+- Upward masking spread is level- and frequency-dependent. Bass masking is one
+  possible contributor to poor dialogue intelligibility, not a diagnosis from
+  bass level alone; mix balance, other maskers, room paths and binaural hearing
+  also matter. Difference products may fall in less-masked regions in a particular
+  test, but assess the actual target/masker spectra rather than the product label.
+
+### Resolution and population limits
+
+Focused source check: Toole sections 4.6.2–4.6.5, 4.9 and 17.3, local
+`books/toole3rd/toole_ocr/{101..112,117..119,430..431}.txt`. Numbers identify
+OCR files, not printed pages; no numerical threshold was recovered from plots.
+
+- A critical band or ERB describes an auditory-filter property, not a hard bin
+  below which spectral changes are inaudible. Within-band changes can alter
+  beating, roughness and timbre. Do not discard narrow features merely because
+  a coarse 1/3-octave display or excitation average hides them.
+- Describe spatial release from masking using the stated task and outcome, often
+  a change in speech-reception threshold between spatial conditions. It is not
+  universally an angular-resolution threshold. Preserve target/masker directions,
+  ear signals, room context and listener characteristics; monaural SNR is not a
+  complete binaural prediction.
+- Hearing loss can affect filter selectivity, loudness growth and binaural
+  processing, not just shift threshold. A normal audiogram does not certify
+  identical speech-in-noise performance. Do not diagnose neural damage from
+  these observations or apply a reported group result to every individual.
