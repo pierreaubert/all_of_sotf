@@ -7,7 +7,7 @@
       "revision": "7ee5645660ffe7c99b3dc9c8e1b133ec019981f6"
     },
     "gpui-toolkit": {
-      "revision": "c351e907806b8c511b47687f1166722102133f65"
+      "revision": "288bb3451fc04f64bd0a595ef5decf4123fc786b"
     },
     "math-audio": {
       "revision": "4aa95f5db6272b4105236554bbac2bc8ab714ef4"
@@ -22,10 +22,10 @@
       "revision": "e6a2cced499357d5ce30940764ec6c824d1cdbcb"
     },
     "sotf-daw": {
-      "revision": "e199734674557f18822280675dc44f7dacc8a90b"
+      "revision": "69c266b7d2f016bc57f1b1c4252888ef4a4ddf08"
     },
     "sotf-systemwide": {
-      "revision": "c62f9d589be0972028466297bdf58073b24c8bf6"
+      "revision": "b7e7514c4424972cbfc0a3f29463a179bceb16e3"
     },
     "symphonia-add-ons": {
       "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
