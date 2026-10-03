@@ -1,0 +1,58 @@
+name: Diagnose archived macOS plugin validators
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Download and verify Gitea run 469 baseline plugins
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/validate_prior_macos_artifact.py 2>&1 | tee prior-plugin-download.log
+      - name: Fetch pinned job-local macOS validators
+        run: |
+          set -o pipefail
+          bash scripts/release/fetch_macos_plugin_validators.sh 2>&1 | tee prior-plugin-validator-fetch.log
+      - name: Validate archived VST3 and CLAP bundles independently
+        run: |
+          set -uo pipefail
+          evidence="$(pwd)/prior-plugin-artifact/release-artifact-evidence-plugins-macos"
+          export PATH="$(cat release-artifact-evidence-plugins-macos/validators/bin-path.txt):$PATH"
+          mkdir -p sotf-daw/dist
+          ln -s "$evidence/artifacts/sotf-daw/dist/vst3" sotf-daw/dist/vst3
+          ln -s "$evidence/artifacts/sotf-daw/dist/clap" sotf-daw/dist/clap
+          failed=0
+          (cd sotf-daw && bash ../scripts/release/validate_macos_plugins.sh vst3 "$evidence") >prior-plugin-vst3.log 2>&1 || failed=1
+          (cd sotf-daw && bash ../scripts/release/validate_macos_plugins.sh clap "$evidence") >prior-plugin-clap.log 2>&1 || failed=1
+          cat prior-plugin-vst3.log prior-plugin-clap.log
+          exit "$failed"
+      - name: Upload baseline validator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: prior-macos-plugin-validator-diagnostics
+          path: |
+            prior-plugin-download.log
+            prior-plugin-validator-fetch.log
+            prior-plugin-vst3.log
+            prior-plugin-clap.log
+            prior-plugin-artifact/verification.json
+            prior-plugin-artifact/release-artifact-evidence-plugins-macos/sources.json
+            prior-plugin-artifact/release-artifact-evidence-plugins-macos/source-before.json
+            prior-plugin-artifact/release-artifact-evidence-plugins-macos/source-after.json
+            prior-plugin-artifact/release-artifact-evidence-plugins-macos/artifact-inventory.json
+            prior-plugin-artifact/release-artifact-evidence-plugins-macos/logs/vst3-validators/
+            prior-plugin-artifact/release-artifact-evidence-plugins-macos/logs/clap-validators/
+            release-artifact-evidence-plugins-macos/validators/provenance.tsv
+            release-artifact-evidence-plugins-macos/validators/binary-formats.txt
+          if-no-files-found: warn
