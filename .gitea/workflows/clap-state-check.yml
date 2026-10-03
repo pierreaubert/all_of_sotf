@@ -1,0 +1,74 @@
+name: Focused CLAP state check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Linux test environment
+        run: |
+          set -euo pipefail
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'Focused CLAP setup requires a disposable root-owned Gitea container' >&2
+            exit 1
+          fi
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl unzip file build-essential clang mold cmake ninja-build pkg-config \
+            libssl-dev libasound2-dev libclang-dev libglib2.0-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libfontconfig1-dev libfreetype6-dev libwayland-dev \
+            libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxrandr-dev libxi-dev libxcursor-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libgl1-mesa-dri mesa-vulkan-drivers \
+            xvfb xauth dbus dbus-x11
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          if [ "$(rustc --version | awk '{print $2}')" != '1.99.0' ]; then
+            echo 'Rust toolchain differs from pinned release QA version' >&2
+            exit 1
+          fi
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Fetch pinned CLAP validator
+        run: |
+          set -euo pipefail
+          bash scripts/release/fetch_linux_plugin_validators.sh 2>&1 | tee validator-download.log
+      - name: Test native state callbacks and Gain CLAP under private display
+        run: |
+          set -euo pipefail
+          dbus-run-session -- xvfb-run -a -s '-screen 0 1440x900x24 +extension RANDR +extension XTEST' \
+            bash scripts/release/clap_state_check.sh
+      - name: Upload complete focused evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: focused-clap-state-linux
+          path: |
+            checkout-sources.log
+            validator-download.log
+            release-clap-state-evidence-linux/
+            release-artifact-evidence-plugins-linux/validators/
+          if-no-files-found: warn
