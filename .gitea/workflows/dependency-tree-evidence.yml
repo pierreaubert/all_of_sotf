@@ -1,0 +1,67 @@
+name: Release dependency tree evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: macos
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Capture macOS dependency trees
+        run: python3 scripts/release/dependency_tree_evidence.py dependency-tree-macos
+      - name: Upload macOS tree evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-tree-macos
+          path: |
+            checkout-sources.log
+            dependency-tree-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: x86:linux:host
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Capture Linux dependency trees
+        run: python3 scripts/release/dependency_tree_evidence.py dependency-tree-linux
+      - name: Upload Linux tree evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-tree-linux
+          path: |
+            checkout-sources.log
+            dependency-tree-linux/
+          if-no-files-found: warn

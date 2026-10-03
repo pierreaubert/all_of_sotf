@@ -45,7 +45,7 @@ def commands_for(name: str, phase: str, platform_name: str | None = None) -> lis
                 "dev-driver-full", "dev-driver-roomeq", "dev-driver-tui",
             )],
             "sotf-daw": [("just", recipe) for recipe in (
-                "ntest", "qa-ffi", "qa-bridge",
+                "ntest", "qa-ffi", "qa-bridge", "qa-plugins-cross-format",
             )],
         }
         if name == "gpui-toolkit":

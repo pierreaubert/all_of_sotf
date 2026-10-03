@@ -81,6 +81,11 @@ def test_sotf_qa_covers_application_and_integration_suites():
         assert ("just", recipe) in commands
 
 
+def test_daw_qa_covers_cross_format_plugin_comparison():
+    for host in ("macos", "linux"):
+        assert ("just", "qa-plugins-cross-format") in qa.commands_for("sotf-daw", "qa", host)
+
+
 def test_toolkit_strict_gate_runs_only_on_macos():
     assert ("just", "qa-release-evidence") in qa.commands_for("gpui-toolkit", "qa", "macos")
     linux = qa.commands_for("gpui-toolkit", "qa", "linux")
