@@ -53,7 +53,7 @@ jobs:
           if-no-files-found: warn
 
   linux:
-    if: inputs.platform == 'linux' && inputs.artifact_group != 'plugins'
+    if: inputs.platform == 'linux' && inputs.artifact_group != 'plugins' && inputs.artifact_group != 'desktop'
     runs-on: x86:linux:host
     timeout-minutes: 360
     steps:
@@ -82,8 +82,8 @@ jobs:
             release-artifact-evidence-*/
           if-no-files-found: warn
 
-  linux_plugins:
-    if: inputs.platform == 'linux' && inputs.artifact_group == 'plugins'
+  linux_display:
+    if: inputs.platform == 'linux' && (inputs.artifact_group == 'plugins' || inputs.artifact_group == 'desktop')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
@@ -94,7 +94,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Prepare disposable Linux plugin environment
+      - name: Prepare disposable Linux display environment
         run: |
           set -euo pipefail
           if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
@@ -111,7 +111,8 @@ jobs:
             libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libxrandr-dev libxi-dev libxcursor-dev \
             libegl1-mesa-dev libgl1-mesa-dev libgl1-mesa-dri mesa-vulkan-drivers \
-            xvfb xauth dbus dbus-x11
+            xvfb xauth dbus dbus-x11 at-spi2-core python3-pyatspi python3-gi gir1.2-atspi-2.0 \
+            xdotool imagemagick
           if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
             curl --fail --location --silent --show-error \
               https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
@@ -131,6 +132,9 @@ jobs:
           command -v Xvfb
           command -v xvfb-run
           command -v dbus-run-session
+          command -v xdotool
+          command -v import
+          /usr/bin/python3 -c 'import pyatspi'
       - name: Checkout pinned sibling repositories
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
@@ -138,22 +142,29 @@ jobs:
           set -o pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
       - name: Fetch pinned Linux plugin validators
+        if: inputs.artifact_group == 'plugins'
         run: |
           set -euo pipefail
           bash scripts/release/fetch_linux_plugin_validators.sh 2>&1 | tee linux-plugin-validator-download.log
-      - name: Build and validate Linux plugins under private display
+      - name: Build and inspect Linux artifact under private display
+        env:
+          ARTIFACT_GROUP: ${{ inputs.artifact_group }}
         run: |
           set -euo pipefail
-          export PATH="$(cat release-artifact-evidence-plugins-linux/validators/bin-path.txt):$CARGO_HOME/bin:$PATH"
+          if [[ "$ARTIFACT_GROUP" == plugins ]]; then
+            export PATH="$(cat release-artifact-evidence-plugins-linux/validators/bin-path.txt):$CARGO_HOME/bin:$PATH"
+          else
+            export PATH="$CARGO_HOME/bin:$PATH"
+          fi
           dbus-run-session -- xvfb-run -a -s '-screen 0 1440x900x24 +extension RANDR +extension XTEST' \
-            bash scripts/release/artifact_check.sh plugins linux
+            bash scripts/release/artifact_check.sh "$ARTIFACT_GROUP" linux
       - name: Upload artifact and evidence
         if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: release-artifact-linux-plugins
+          name: release-artifact-linux-${{ inputs.artifact_group }}
           path: |
             checkout-sources.log
             linux-plugin-validator-download.log
-            release-artifact-evidence-plugins-linux/
+            release-artifact-evidence-*/
           if-no-files-found: warn
