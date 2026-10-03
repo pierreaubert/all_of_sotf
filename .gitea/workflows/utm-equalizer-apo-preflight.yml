@@ -1,0 +1,26 @@
+name: Equalizer APO UTM preflight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Probe configured Windows guest and Equalizer APO
+        run: |
+          set -o pipefail
+          bash scripts/release/utm_equalizer_apo_preflight.sh 2>&1 | tee utm-equalizer-apo-preflight.log
+      - name: Upload preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: utm-equalizer-apo-preflight-macos
+          path: |
+            utm-equalizer-apo-preflight.log
+            release-utm-apo-preflight-evidence-macos/
+          if-no-files-found: warn
