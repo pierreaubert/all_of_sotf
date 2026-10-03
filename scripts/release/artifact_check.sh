@@ -105,16 +105,39 @@ case "$group" in
     plugins)
         if [[ $platform == macos ]]; then
             run_step vst3-build sotf-daw just prod-vst3 && stage sotf-daw/dist/vst3
+            if [[ -d sotf-daw/dist/nih/build-logs ]] &&
+                cp -R sotf-daw/dist/nih/build-logs "$output/logs/nih-vst3-features"; then
+                :
+            else
+                echo 'Failed to retain VST3 feature build logs' >&2
+                failed=1
+            fi
             run_step clap-build sotf-daw just prod-clap && stage sotf-daw/dist/clap
-            run_step vst3-validate sotf-daw just qa-plugins-vst3-validate
-            run_step clap-validate sotf-daw just qa-plugins-clap-validate
+            if [[ -d sotf-daw/dist/nih/build-logs ]] &&
+                cp -R sotf-daw/dist/nih/build-logs "$output/logs/nih-clap-features"; then
+                :
+            else
+                echo 'Failed to retain CLAP feature build logs' >&2
+                failed=1
+            fi
+            run_step vst3-validate sotf-daw bash ../scripts/release/validate_macos_plugins.sh vst3 "$output"
+            run_step clap-validate sotf-daw bash ../scripts/release/validate_macos_plugins.sh clap "$output"
         else
-            run_step vst3-build sotf-daw just prod-vst3-linux && stage sotf-daw/dist/vst3-linux
-            run_step clap-build sotf-daw just prod-clap-linux && stage sotf-daw/dist/clap-linux
-            # The current validation recipes inspect dist/vst3 and dist/clap,
-            # so validate Linux's native output paths directly.
-            run_step vst3-validate sotf-daw bash -c 'set -e; for bundle in dist/vst3-linux/*.vst3; do pluginval --validate "$bundle" --strictness-level 5 --timeout-ms 30000; done'
-            run_step clap-validate sotf-daw bash -c 'set -e; for plugin in dist/clap-linux/*.clap; do clap-validator validate "$plugin"; done'
+            if run_step plugin-formats-build sotf-daw just prod-plugin-formats-linux; then
+                stage sotf-daw/dist/vst3-linux
+                stage sotf-daw/dist/clap-linux
+            fi
+            if [[ -d sotf-daw/dist/nih-linux/build-logs ]]; then
+                if ! cp -R sotf-daw/dist/nih-linux/build-logs "$output/logs/nih-features"; then
+                    echo 'Failed to retain Linux feature build logs' >&2
+                    failed=1
+                fi
+            else
+                echo 'Missing Linux feature build logs' >&2
+                failed=1
+            fi
+            run_step vst3-validate sotf-daw bash ../scripts/release/validate_linux_plugins.sh vst3 "$output"
+            run_step clap-validate sotf-daw bash ../scripts/release/validate_linux_plugins.sh clap "$output"
         fi
         ;;
     autoeq)
