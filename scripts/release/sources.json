@@ -1,34 +1,34 @@
 {
-    "schema": 1,
-    "server": "http://192.168.1.32:3001",
-    "owner": "pierre",
-    "sources": {
-        "autoeq": {
-            "revision": "5e9086bc1561aac9b73577446818bec32daef5be"
-        },
-        "gpui-toolkit": {
-            "revision": "863e15679a05eb10cf1f0c71518d1400b0b1b8c4"
-        },
-        "math-audio": {
-            "revision": "4aa95f5db6272b4105236554bbac2bc8ab714ef4"
-        },
-        "sofa-reader": {
-            "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
-        },
-        "sotf": {
-            "revision": "d86bc124870657ea91240075be0bd4809003213a"
-        },
-        "sotf-capture": {
-            "revision": "fc40a7310b39925bb589aa2d1c8bb2bbff876e5e"
-        },
-        "sotf-daw": {
-            "revision": "4d254772259daeb4b3a8ebc57c8145583ac4e3b9"
-        },
-        "sotf-systemwide": {
-            "revision": "ca52a7d5a7979913ff61cfdd5ba9b25aa43eb333"
-        },
-        "symphonia-add-ons": {
-            "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
-        }
+  "schema": 1,
+  "server": "http://192.168.1.32:3001",
+  "owner": "pierre",
+  "sources": {
+    "autoeq": {
+      "revision": "5e9086bc1561aac9b73577446818bec32daef5be"
+    },
+    "gpui-toolkit": {
+      "revision": "0f98b12fe46f6eed1a72d8156ad132c30bfb0578"
+    },
+    "math-audio": {
+      "revision": "4aa95f5db6272b4105236554bbac2bc8ab714ef4"
+    },
+    "sofa-reader": {
+      "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
+    },
+    "sotf": {
+      "revision": "14e15aa03f92acae1e8d01eb7b698b902da6167b"
+    },
+    "sotf-capture": {
+      "revision": "fc40a7310b39925bb589aa2d1c8bb2bbff876e5e"
+    },
+    "sotf-daw": {
+      "revision": "4d254772259daeb4b3a8ebc57c8145583ac4e3b9"
+    },
+    "sotf-systemwide": {
+      "revision": "ca52a7d5a7979913ff61cfdd5ba9b25aa43eb333"
+    },
+    "symphonia-add-ons": {
+      "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
     }
+  }
 }

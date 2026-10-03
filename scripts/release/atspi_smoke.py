@@ -148,18 +148,18 @@ def main() -> int:
                         return True
                     nodes = list(descendants(app))
                     tree = [description(node) for node in nodes]
-                    studio = next(
-                        (
-                            node
-                            for node in nodes
-                            if node.getRole() == pyatspi.ROLE_PUSH_BUTTON
-                            and (node.name or "") == "Studio"
-                        ),
-                        None,
-                    )
-                    if studio is None:
-                        return True
                     if not result["action_invoked"]:
+                        studio = next(
+                            (
+                                node
+                                for node in nodes
+                                if node.getRole() == pyatspi.ROLE_PUSH_BUTTON
+                                and (node.name or "") == "Studio"
+                            ),
+                            None,
+                        )
+                        if studio is None:
+                            return True
                         result["tree_before"] = tree
                         if any((node.name or "") == "Add a plugin to get started" for node in nodes):
                             raise RuntimeError("Studio rack was already present before AT-SPI action")

@@ -8,6 +8,11 @@ on:
         type: choice
         options: [all, macos, linux]
         default: all
+      vello_diagnostic:
+        description: Capture Linux Vello renderer initialization validation errors
+        type: choice
+        options: ['false', 'true']
+        default: 'false'
 
 jobs:
   macos:
@@ -105,6 +110,9 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Enable opt-in Linux Vello diagnostic
+        if: inputs.vello_diagnostic == 'true'
+        run: echo 'SOTF_VELLO_VALIDATE_INIT=1' >> "$GITHUB_ENV"
       - name: Require Xvfb and run Linux UI QA with a display
         run: |
           export PATH="$CARGO_HOME/bin:$PATH"
@@ -117,7 +125,7 @@ jobs:
           chmod 700 "$runtime_dir"
           trap 'rm -rf "$runtime_dir"' EXIT
           export XDG_RUNTIME_DIR="$runtime_dir"
-          dbus-run-session -- xvfb-run -a -s '-screen 0 2560x1600x24' bash scripts/release/ui_check.sh linux
+          dbus-run-session -- xvfb-run -a -s '-screen 0 2560x2400x24' bash scripts/release/ui_check.sh linux
       - name: Upload Linux UI evidence
         if: always()
         uses: actions/upload-artifact@v3
