@@ -57,8 +57,13 @@ run_check() {
     shift 2
     local log="$output/$name.log"
     printf '[%s] %s\n' "$name" "$*"
-    (cd "$workspace" && "$@") >"$log" 2>&1
-    local status=$?
+    (cd "$workspace" && "$@") 2>&1 | tee "$log"
+    local -a pipeline_status=("${PIPESTATUS[@]}")
+    local status=${pipeline_status[0]}
+    if [ "${pipeline_status[1]}" -ne 0 ]; then
+        printf '[%s] could not retain complete output in %s\n' "$name" "$log" >&2
+        failed=1
+    fi
     printf '[%s] exit %s; log: %s\n' "$name" "$status" "$log"
     if [ "$status" -ne 0 ]; then
         tail -n 80 "$log"
