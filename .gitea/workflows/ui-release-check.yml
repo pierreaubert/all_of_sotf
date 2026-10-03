@@ -78,9 +78,9 @@ jobs:
           if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
             curl --fail --location --silent --show-error \
               https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
-              --output /tmp/sotf-rustup-init
-            chmod +x /tmp/sotf-rustup-init
-            /tmp/sotf-rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
           fi
           export PATH="$CARGO_HOME/bin:$PATH"
           if ! command -v just >/dev/null 2>&1 || [ "$(just --version)" != 'just 1.58.0' ]; then
