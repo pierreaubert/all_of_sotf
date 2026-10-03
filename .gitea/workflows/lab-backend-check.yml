@@ -1,8 +1,13 @@
-name: Isolated systemwide lab backend QA
+name: Isolated systemwide lab diagnostics and QA
 
 on:
   workflow_dispatch:
     inputs:
+      phase:
+        description: Diagnostic runs focused tests only and is NOT full QA
+        type: choice
+        options: [diagnostic, full]
+        default: diagnostic
       platform:
         description: Runner platform
         type: choice
@@ -26,8 +31,8 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
-      - name: Test engine and isolated systemwide lab
-        run: bash scripts/release/lab_backend_check.sh macos lab-backend-evidence-macos
+      - name: Test engine and isolated systemwide lab (${{ inputs.phase }})
+        run: bash scripts/release/lab_backend_check.sh macos lab-backend-evidence-macos "${{ inputs.phase }}"
       - name: Upload macOS lab evidence
         if: always()
         uses: actions/upload-artifact@v3
@@ -54,8 +59,8 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
-      - name: Test engine and IPC lab
-        run: bash scripts/release/lab_backend_check.sh linux lab-backend-evidence-linux
+      - name: Test engine and IPC lab (${{ inputs.phase }})
+        run: bash scripts/release/lab_backend_check.sh linux lab-backend-evidence-linux "${{ inputs.phase }}"
       - name: Upload Linux lab evidence
         if: always()
         uses: actions/upload-artifact@v3

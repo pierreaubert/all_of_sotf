@@ -3,12 +3,20 @@ set -u
 
 platform=${1:?macos or linux required}
 output=${2:?evidence directory required}
+phase=${3:?diagnostic or full phase required}
 if [ "$platform" != macos ] && [ "$platform" != linux ]; then
     printf 'unsupported platform: %s\n' "$platform" >&2
     exit 2
 fi
+if [ "$phase" != diagnostic ] && [ "$phase" != full ]; then
+    printf 'unsupported lab phase: %s\n' "$phase" >&2
+    exit 2
+fi
 mkdir -p "$output" || exit 1
 cp scripts/release/sources.json "$output/sources.json" || exit 1
+if [ "$phase" = diagnostic ]; then
+    printf 'NOT_FULL_QA: focused isolated lab diagnostics only; full systemwide lab recipe was not run.\n' >"$output/NOT_FULL_QA" || exit 1
+fi
 {
     date -u
     uname -a
@@ -157,7 +165,7 @@ if run_check systemwide-ipc-lab-compile sotf-systemwide cargo test -p sotf-daemo
         fi
     done
 fi
-if [ "$platform" = macos ] && [ "$failed" -eq 0 ]; then
+if [ "$platform" = macos ] && [ "$phase" = full ] && [ "$failed" -eq 0 ]; then
     run_bounded_check systemwide-isolated-lab sotf-systemwide 1200 just systemwide-lab
 fi
 
