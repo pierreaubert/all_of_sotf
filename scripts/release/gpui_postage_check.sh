@@ -67,7 +67,10 @@ run_check() {
     printf '[%s] exit %s; log: %s\n' "$name" "$status" "$log"
     if [ "$status" -ne 0 ]; then
         failed=1
-    elif [ "$name" != gpui-all-targets ] && ! grep -Eq '^running [1-9][0-9]* tests?$' "$log"; then
+    elif [ "$name" = toolkit-importer-tests ] && ! grep -Eq '^Ran [1-9][0-9]* tests? in ' "$log"; then
+        printf '[%s] no tests executed\n' "$name" >&2
+        failed=1
+    elif [ "$name" != gpui-all-targets ] && [ "$name" != toolkit-importer-tests ] && ! grep -Eq '^running [1-9][0-9]* tests?$' "$log"; then
         printf '[%s] no tests executed\n' "$name" >&2
         failed=1
     fi
@@ -78,6 +81,8 @@ run_check toolkit-util-tests gpui-toolkit cargo test --locked -p gpui-toolkit-ut
 run_check gpui-notification-condition gpui-toolkit cargo test --locked -p gpui-toolkit-gpui --features test-support --lib test_entity_notification_and_condition_wake
 run_check gpui-app-tests gpui-toolkit cargo test --locked -p gpui-toolkit-gpui --features test-support --lib
 run_check gpui-all-targets gpui-toolkit cargo check --locked -p gpui-toolkit-gpui --features test-support --all-targets
+run_check toolkit-vendored-inventory gpui-toolkit cargo test --locked -p gpui-release-gates vendored_patches
+run_check toolkit-importer-tests gpui-toolkit env PYTHONPATH=scripts python3 -m unittest discover -s scripts/tests -p test_import_gpui_upstream.py
 
 source_state after || failed=1
 exit "$failed"
