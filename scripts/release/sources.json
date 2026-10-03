@@ -4,7 +4,7 @@
   "owner": "pierre",
   "sources": {
     "autoeq": {
-      "revision": "c4c7027f1858b9b2c775d828bbc0f433879f52b8"
+      "revision": "7ee5645660ffe7c99b3dc9c8e1b133ec019981f6"
     },
     "gpui-toolkit": {
       "revision": "bca93900530db77f087bc3492c3ba5ecb28d5d8e"
@@ -16,16 +16,16 @@
       "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
     },
     "sotf": {
-      "revision": "6451cdcf8134aba29f9cfe1a4a8152755ab74dcd"
+      "revision": "7c5014d670a976406a1044752ed4647f9e16bc77"
     },
     "sotf-capture": {
       "revision": "e6a2cced499357d5ce30940764ec6c824d1cdbcb"
     },
     "sotf-daw": {
-      "revision": "3fd67878ba63a2ea0806ec305132bf7cfe31b301"
+      "revision": "f1b30284977379fd226baac8fc0a6c574d620b47"
     },
     "sotf-systemwide": {
-      "revision": "9dedd39de187e5e84e612e3b7d50088e13ad9030"
+      "revision": "3f645a3de3abf1c28c76da2d562a6ec8c4d9ad2d"
     },
     "symphonia-add-ons": {
       "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
