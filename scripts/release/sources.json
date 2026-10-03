@@ -4,28 +4,28 @@
   "owner": "pierre",
   "sources": {
     "autoeq": {
-      "revision": "53700cbbcaa59f4602228dd98f38277d3fbc7736"
+      "revision": "0efec8a1fefabb7c8eb8e2b64b5f9669328ae91f"
     },
     "gpui-toolkit": {
-      "revision": "b7036c905eaec2c88085a445d9c1f588914c2152"
+      "revision": "bca93900530db77f087bc3492c3ba5ecb28d5d8e"
     },
     "math-audio": {
       "revision": "bc3afa204820bb8783fd75e4b8592248cd7500b6"
     },
     "sofa-reader": {
-      "revision": "e661c0cbf165dc2b5c7ca1e0c71ecbfdc2c1097e"
+      "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
     },
     "sotf": {
-      "revision": "8c6c8653b5342a7cb6d13c5b3e1f995d01b03176"
+      "revision": "6451cdcf8134aba29f9cfe1a4a8152755ab74dcd"
     },
     "sotf-capture": {
-      "revision": "248d1f7be1f9a5e3460e23ece0c5b92612d0f299"
+      "revision": "e6a2cced499357d5ce30940764ec6c824d1cdbcb"
     },
     "sotf-daw": {
-      "revision": "3be294472fdb6fcfc4cb8ec658d8670cf7027e4a"
+      "revision": "7d1f2875c4d58e1e9e44e688b57b45f3c51e5654"
     },
     "sotf-systemwide": {
-      "revision": "e5488aa3974ea4517f8f847658e23d28b021ca5c"
+      "revision": "9dedd39de187e5e84e612e3b7d50088e13ad9030"
     },
     "symphonia-add-ons": {
       "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
