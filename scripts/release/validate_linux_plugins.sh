@@ -34,11 +34,18 @@ for plugin in "${plugins[@]}"; do
     staged_plugin="$evidence/artifacts/sotf-daw/$plugin"
     log="$log_directory/$name.log"
     if [[ $format == vst3 ]]; then
-        pluginval --validate "$staged_plugin" --strictness-level 5 --timeout-ms 30000 >"$log" 2>&1
+        if [[ ! -f "$staged_plugin/Contents/x86_64-linux/$name.so" ]]; then
+            printf 'VST3 bundle binary must match bundle name: %s/Contents/x86_64-linux/%s.so\n' \
+                "$staged_plugin" "$name" >"$log"
+            status=1
+        else
+            pluginval --validate "$staged_plugin" --strictness-level 5 --timeout-ms 30000 >"$log" 2>&1
+            status=$?
+        fi
     else
         clap-validator validate "$staged_plugin" >"$log" 2>&1
+        status=$?
     fi
-    status=$?
     printf '%s\t%s\t%s\n' "$name" "$status" "$log" >>"$log_directory/results.tsv"
     printf '%-32s %s (exit %s)\n' "$name" "$([[ $status -eq 0 ]] && echo PASS || echo FAIL)" "$status"
     if (( status != 0 )); then failed=$((failed + 1)); fi
