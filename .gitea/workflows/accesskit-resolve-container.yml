@@ -1,7 +1,12 @@
-name: Resolve pinned AccessKit candidate in disposable container
+name: Resolve pinned release candidate in disposable container
 
 on:
   workflow_dispatch:
+    inputs:
+      root_sha:
+        description: Reviewed aggregate release commit to resolve (40 lowercase hex characters)
+        required: true
+        type: string
 
 jobs:
   resolve:
@@ -11,16 +16,24 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
       RUSTUP_TOOLCHAIN: 1.99.0
-      PINNED_ROOT: 5fa5af3baca661350211d3580a452516838c830e
+      PINNED_ROOT: ${{ inputs.root_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Require exact AccessKit source snapshot
+      - name: Require exact reviewed source snapshot
         run: |
           set -euo pipefail
+          if [[ ! "$PINNED_ROOT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'root_sha must be a full lowercase Git commit SHA'
+            exit 1
+          fi
           git cat-file -e "$PINNED_ROOT^{commit}"
+          if ! git merge-base --is-ancestor "$PINNED_ROOT" HEAD; then
+            echo 'root_sha must be an ancestor of the dispatched release ref'
+            exit 1
+          fi
           git checkout --detach "$PINNED_ROOT"
           test "$(git rev-parse HEAD)" = "$PINNED_ROOT"
           printf '%s\n' "$PINNED_ROOT" > pinned-root.txt

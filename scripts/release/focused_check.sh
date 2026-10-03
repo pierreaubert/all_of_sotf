@@ -29,12 +29,14 @@ run_check() {
 }
 
 run_check math-crossover-reset math-audio cargo test -p math-iir-fir --lib --locked
+run_check toolkit-util-tests gpui-toolkit cargo test --locked -p gpui-toolkit-util -p gpui-toolkit-gpui-util
 run_check daw-band-split-tests sotf-daw cargo test -p sotf-plugin-band-split --lib --locked
 run_check daw-band-split-check sotf-daw cargo check -p sotf-plugin-band-split --all-targets --locked
 run_check daw-nalgebra-consumer-tests sotf-daw cargo test -p sotf-plugin-ambisonics -p sotf-plugin-beamformer --lib --locked
 run_check daw-nalgebra-consumer-check sotf-daw cargo check -p sotf-plugin-ambisonics -p sotf-plugin-beamformer --all-targets --locked
 run_check daw-nnnoiseless-tests sotf-daw cargo test -p nnnoiseless --locked
 run_check daw-denoiser-tests sotf-daw cargo test -p plugins-denoiser --locked
+run_check daw-nih-derive-tests sotf-daw cargo test -p plugins-nih --test derive_params --test derive_persist --locked
 run_check daw-room-eq-graph-tests sotf-daw cargo test -p sotf-room-eq-graph --locked
 run_check daw-midi-tests sotf-daw cargo test -p sotf-midi --locked
 if [ "${RELEASE_PLATFORM:-}" = linux ]; then
