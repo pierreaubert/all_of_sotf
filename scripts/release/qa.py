@@ -48,6 +48,12 @@ def commands_for(name: str, phase: str, platform_name: str | None = None) -> lis
                 "ntest", "qa-ffi", "qa-bridge", "qa-plugins-cross-format",
             )],
         }
+        if name == "sotf-daw" and platform_name == "linux":
+            extras[name].append((
+                "cargo", "test", "--locked", "-p", "sotf-host",
+                "--features", "worker-test-backend,external-plugin-clap",
+                "--test", "external_plugin_isolation", "--", "--nocapture",
+            ))
         if name == "gpui-toolkit":
             # The strict release recipe requires Metal. Linux runs the portable QA recipe.
             commands = [metadata, ("just", "qa-release-evidence" if platform_name == "macos" else "qa")]
@@ -101,6 +107,18 @@ def print_failure_tail(log: Path, lines: int = 80) -> None:
     with log.open("r", encoding="utf-8", errors="replace") as stream:
         for line in deque(stream, maxlen=lines):
             print(line, end="", flush=True)
+
+
+def sandbox_coverage_skipped(name: str, phase: str, platform_name: str,
+                             command: tuple[str, ...], log: Path) -> bool:
+    """Reject the sandbox integration test's successful kernel-unavailable return."""
+    if (name, phase, platform_name) != ("sotf-daw", "qa", "linux"):
+        return False
+    if not (command[:5] == ("cargo", "test", "--locked", "-p", "sotf-host")
+            and "external_plugin_isolation" in command):
+        return False
+    with log.open("r", encoding="utf-8", errors="replace") as stream:
+        return any("SKIP: kernel sandbox unavailable" in line for line in stream)
 
 
 class GateInterrupted(KeyboardInterrupt):
@@ -175,6 +193,12 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
         if code:
             print_failure_tail(log)
             result["error"] = "command failed; later commands were not run"
+            return result
+        if sandbox_coverage_skipped(name, phase, platform_name, command, log):
+            print_failure_tail(log)
+            result["error"] = "required Linux sandbox coverage skipped; later commands were not run"
+            result["gates"].append({"name": "Linux external-plugin sandbox", "status": "FAIL",
+                                    "reason": "kernel sandbox unavailable"})
             return result
     after = source_state(root, [name], platform_name)
     issues = source_issues(before, after, require_clean)

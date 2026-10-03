@@ -86,6 +86,57 @@ def test_daw_qa_covers_cross_format_plugin_comparison():
         assert ("just", "qa-plugins-cross-format") in qa.commands_for("sotf-daw", "qa", host)
 
 
+def test_linux_daw_qa_requires_feature_gated_sandbox_worker():
+    sandbox = (
+        "cargo", "test", "--locked", "-p", "sotf-host",
+        "--features", "worker-test-backend,external-plugin-clap",
+        "--test", "external_plugin_isolation", "--", "--nocapture",
+    )
+    assert sandbox in qa.commands_for("sotf-daw", "qa", "linux")
+    assert sandbox not in qa.commands_for("sotf-daw", "qa", "macos")
+    assert sandbox not in qa.commands_for("sotf-daw", "tests", "linux")
+
+
+def test_successful_sandbox_test_with_kernel_skip_fails_qa(tmp_path, monkeypatch):
+    workspace = tmp_path / "sotf-daw"
+    workspace.mkdir()
+    (workspace / "Cargo.toml").write_text("[workspace]\n")
+    (workspace / "Cargo.lock").write_text("original lock")
+    output = tmp_path / "evidence"
+    output.mkdir()
+    monkeypatch.setattr(qa, "snapshot", lambda *args: {"revision": "abc123", "dirty": False})
+    sandbox = qa.commands_for("sotf-daw", "qa", "linux")[-1]
+    monkeypatch.setattr(qa, "commands_for", lambda *_: [sandbox])
+
+    class CompletedProcess:
+        returncode = 0
+
+        def wait(self):
+            return 0
+
+    def fake_popen(_command, cwd, stdout, stderr, start_new_session):
+        assert cwd == workspace
+        stdout.write("SKIP: kernel sandbox unavailable (backend LinuxLandlock)\n")
+        stdout.flush()
+        return CompletedProcess()
+
+    monkeypatch.setattr(qa.subprocess, "Popen", fake_popen)
+    result = qa.run_workspace("sotf-daw", "qa", tmp_path, output, False, "linux")
+    assert result["status"] == "FAIL"
+    assert result["commands"][0]["exit_code"] == 0
+    assert result["error"] == "required Linux sandbox coverage skipped; later commands were not run"
+    assert result["gates"][-1]["status"] == "FAIL"
+
+
+def test_sandbox_skip_marker_is_scoped_to_linux_daw_qa(tmp_path):
+    log = tmp_path / "sandbox.log"
+    log.write_text("SKIP: kernel sandbox unavailable\n")
+    sandbox = qa.commands_for("sotf-daw", "qa", "linux")[-1]
+    assert qa.sandbox_coverage_skipped("sotf-daw", "qa", "linux", sandbox, log)
+    assert not qa.sandbox_coverage_skipped("sotf-daw", "qa", "macos", sandbox, log)
+    assert not qa.sandbox_coverage_skipped("sotf-daw", "tests", "linux", sandbox, log)
+
+
 def test_toolkit_strict_gate_runs_only_on_macos():
     assert ("just", "qa-release-evidence") in qa.commands_for("gpui-toolkit", "qa", "macos")
     linux = qa.commands_for("gpui-toolkit", "qa", "linux")
