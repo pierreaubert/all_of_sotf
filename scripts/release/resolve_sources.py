@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import time
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -29,6 +30,14 @@ ORDER = (
     "math-audio", "gpui-toolkit", "sofa-reader", "symphonia-add-ons",
     "autoeq", "sotf-daw", "sotf-capture", "sotf", "sotf-systemwide",
 )
+
+# Resolve the Vello/GPUI GPU stack to one pinned Zed fork. Cargo's normal
+# metadata refresh can retain the older crates.io lock entries after patches
+# change, so these exact packages need an explicit update first.
+TARGETED_UPDATES = {
+    "autoeq": (("wgpu", "29.0.4", "29.0.3"), ("naga", "29.0.4", "29.0.3")),
+    "sotf-daw": (("naga", "29.0.4", "29.0.3"),),
+}
 
 
 def git(workspace: Path, *args: str) -> str:
@@ -48,6 +57,18 @@ def changed_paths(workspace: Path) -> list[str]:
 
 def digest(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
+def has_registry_package(lock: Path, name: str, version: str) -> bool:
+    if not lock.is_file():
+        return False
+    packages = tomllib.loads(lock.read_text(encoding="utf-8")).get("package", [])
+    return any(
+        package.get("name") == name
+        and package.get("version") == version
+        and package.get("source", "").startswith("registry+")
+        for package in packages
+    )
 
 
 def write_report(path: Path, report: dict) -> None:
@@ -109,25 +130,69 @@ def resolve_one(name: str, revision: str, root: Path, output: Path) -> dict:
     start = time.monotonic()
     print(f"[{name}] resolving {revision}", flush=True)
     was_interrupted = False
-    with metadata.open("w", encoding="utf-8") as stdout, log.open("w", encoding="utf-8") as stderr:
-        try:
-            process = subprocess.Popen(
-                ["cargo", "metadata", "--format-version", "1"],
-                cwd=workspace, stdout=stdout, stderr=stderr,
-                start_new_session=True,
+    result["targeted_updates"] = []
+    update_failure = False
+    try:
+        for package, before, after in TARGETED_UPDATES.get(name, ()):
+            command = ["cargo", "update", "-p", f"{package}@{before}", "--precise", after]
+            update_log = output / "logs" / f"{name}-update-{package}.log"
+            update = {"argv": command, "log_file": str(update_log.relative_to(output))}
+            result["targeted_updates"].append(update)
+            if not has_registry_package(lock, package, before):
+                update["status"] = "SKIPPED"
+                update["reason"] = f"registry {package}@{before} absent from lockfile"
+                continue
+            print(f"[{name}] {' '.join(command)}", flush=True)
+            update["lock_before_sha256"] = digest(lock)
+            with update_log.open("w", encoding="utf-8") as stdout:
+                try:
+                    process = subprocess.Popen(
+                        command, cwd=workspace, stdout=stdout, stderr=subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                    try:
+                        update["exit_code"] = process.wait()
+                    except KeyboardInterrupt:
+                        stop_process_group(process)
+                        update["exit_code"] = process.returncode
+                        was_interrupted = True
+                except OSError as error:
+                    stdout.write(str(error) + "\n")
+                    update["exit_code"] = 127
+            update["lock_after_sha256"] = digest(lock)
+            update["registry_old_remaining"] = has_registry_package(lock, package, before)
+            update["status"] = "INTERRUPTED" if was_interrupted else (
+                "PASS" if update["exit_code"] == 0 and not update["registry_old_remaining"] else "FAIL"
             )
+            if update["status"] != "PASS":
+                result["exit_code"] = update["exit_code"]
+                update_failure = True
+                break
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        result["error"] = f"cannot inspect lockfile for targeted update: {error}"
+        update_failure = True
+
+    if not update_failure:
+        with metadata.open("w", encoding="utf-8") as stdout, log.open("w", encoding="utf-8") as stderr:
             try:
-                result["exit_code"] = process.wait()
-            except KeyboardInterrupt:
-                stop_process_group(process)
-                result["exit_code"] = process.returncode
-                was_interrupted = True
-        except OSError as error:
-            stderr.write(str(error) + "\n")
-            result["exit_code"] = 127
+                process = subprocess.Popen(
+                    ["cargo", "metadata", "--format-version", "1"],
+                    cwd=workspace, stdout=stdout, stderr=stderr,
+                    start_new_session=True,
+                )
+                try:
+                    result["exit_code"] = process.wait()
+                except KeyboardInterrupt:
+                    stop_process_group(process)
+                    result["exit_code"] = process.returncode
+                    was_interrupted = True
+            except OSError as error:
+                stderr.write(str(error) + "\n")
+                result["exit_code"] = 127
     result["duration_seconds"] = round(time.monotonic() - start, 3)
-    result["metadata_file"] = str(metadata.relative_to(output))
-    result["log_file"] = str(log.relative_to(output))
+    if metadata.is_file():
+        result["metadata_file"] = str(metadata.relative_to(output))
+        result["log_file"] = str(log.relative_to(output))
     result["lock_after_sha256"] = digest(lock)
     result["lock_changed"] = result["lock_before_sha256"] != result["lock_after_sha256"]
     if lock.is_file():
@@ -139,7 +204,9 @@ def resolve_one(name: str, revision: str, root: Path, output: Path) -> dict:
         result["error"] = "resolution interrupted; inspect log and partial lockfile"
         raise ResolutionInterrupted(result)
 
-    if result["exit_code"]:
+    if update_failure:
+        result.setdefault("error", "targeted cargo update failed; inspect its log and partial lockfile")
+    elif result["exit_code"]:
         result["error"] = "cargo metadata failed; inspect log and partial lockfile"
     elif git(workspace, "rev-parse", "HEAD") != revision:
         result["error"] = "source revision changed during resolution"

@@ -102,3 +102,80 @@ def test_main_writes_failure_report_for_interrupted_workspace(tmp_path: Path) ->
     assert report["interrupted"] is True
     assert report["workspaces"] == [partial]
     assert "finished_at" in report
+
+
+def test_targeted_update_only_selects_registry_package(tmp_path: Path) -> None:
+    lock = tmp_path / "Cargo.lock"
+    lock.write_text('''version = 3
+[[package]]
+name = "wgpu"
+version = "29.0.3"
+source = "git+https://github.com/zed-industries/wgpu.git"
+[[package]]
+name = "wgpu"
+version = "29.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+''')
+    assert resolve_sources.has_registry_package(lock, "wgpu", "29.0.4")
+    assert not resolve_sources.has_registry_package(lock, "wgpu", "29.0.3")
+    assert not resolve_sources.has_registry_package(lock, "naga", "29.0.4")
+
+
+def test_targeted_updates_are_recorded_before_metadata(tmp_path: Path) -> None:
+    root, output = workspace(tmp_path)
+    old = root / "sotf"
+    child = root / "autoeq"
+    old.rename(child)
+    (child / "Cargo.lock").write_text('''version = 3
+[[package]]
+name = "wgpu"
+version = "29.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+''')
+    commands = []
+
+    def fake_cargo(command, *, cwd, stdout, stderr, start_new_session):
+        commands.append(command)
+        assert cwd == child and start_new_session
+        if command[1] == "update":
+            (child / "Cargo.lock").write_text("version = 3\n")
+        else:
+            stdout.write(json.dumps({"packages": []}))
+        return SimpleNamespace(wait=lambda: 0)
+
+    with patch.object(resolve_sources, "git", return_value="a" * 40):
+        with patch.object(resolve_sources, "changed_paths", side_effect=[[], ["Cargo.lock"]]):
+            with patch.object(resolve_sources.subprocess, "Popen", side_effect=fake_cargo):
+                result = resolve_sources.resolve_one("autoeq", "a" * 40, root, output)
+    assert result["status"] == "RESOLVED"
+    assert [command[1] for command in commands] == ["update", "metadata"]
+    assert result["targeted_updates"][0]["status"] == "PASS"
+    assert result["targeted_updates"][1]["status"] == "SKIPPED"
+    assert result["targeted_updates"][0]["argv"] == [
+        "cargo", "update", "-p", "wgpu@29.0.4", "--precise", "29.0.3",
+    ]
+
+
+def test_failed_targeted_update_preserves_lock_and_skips_metadata(tmp_path: Path) -> None:
+    root, output = workspace(tmp_path)
+    (root / "sotf").rename(root / "autoeq")
+    lock = root / "autoeq" / "Cargo.lock"
+    lock.write_text('''version = 3
+[[package]]
+name = "wgpu"
+version = "29.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+''')
+
+    def fake_cargo(command, *, cwd, stdout, stderr, start_new_session):
+        assert command[1] == "update" and cwd == root / "autoeq"
+        return SimpleNamespace(wait=lambda: 101)
+
+    with patch.object(resolve_sources, "git", return_value="a" * 40):
+        with patch.object(resolve_sources, "changed_paths", side_effect=[[], []]):
+            with patch.object(resolve_sources.subprocess, "Popen", side_effect=fake_cargo):
+                result = resolve_sources.resolve_one("autoeq", "a" * 40, root, output)
+    assert result["status"] == "FAIL"
+    assert result["targeted_updates"][0]["exit_code"] == 101
+    assert not (output / "metadata/autoeq.json").exists()
+    assert (output / "locks/autoeq/Cargo.lock").read_bytes() == lock.read_bytes()

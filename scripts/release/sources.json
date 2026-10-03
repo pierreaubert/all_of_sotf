@@ -4,13 +4,13 @@
   "owner": "pierre",
   "sources": {
     "autoeq": {
-      "revision": "0efec8a1fefabb7c8eb8e2b64b5f9669328ae91f"
+      "revision": "c4c7027f1858b9b2c775d828bbc0f433879f52b8"
     },
     "gpui-toolkit": {
       "revision": "bca93900530db77f087bc3492c3ba5ecb28d5d8e"
     },
     "math-audio": {
-      "revision": "bc3afa204820bb8783fd75e4b8592248cd7500b6"
+      "revision": "4aa95f5db6272b4105236554bbac2bc8ab714ef4"
     },
     "sofa-reader": {
       "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
@@ -22,7 +22,7 @@
       "revision": "e6a2cced499357d5ce30940764ec6c824d1cdbcb"
     },
     "sotf-daw": {
-      "revision": "7d1f2875c4d58e1e9e44e688b57b45f3c51e5654"
+      "revision": "3fd67878ba63a2ea0806ec305132bf7cfe31b301"
     },
     "sotf-systemwide": {
       "revision": "9dedd39de187e5e84e612e3b7d50088e13ad9030"

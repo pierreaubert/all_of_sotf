@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -94,6 +95,14 @@ def write_report(path: Path, report: dict) -> None:
     pending.replace(path)
 
 
+def print_failure_tail(log: Path, lines: int = 80) -> None:
+    """Show the end of a failed gate in CI while preserving the full artifact."""
+    print(f"--- Last {lines} lines of {log} ---", flush=True)
+    with log.open("r", encoding="utf-8", errors="replace") as stream:
+        for line in deque(stream, maxlen=lines):
+            print(line, end="", flush=True)
+
+
 class GateInterrupted(KeyboardInterrupt):
     def __init__(self, result: dict):
         super().__init__("gate interrupted")
@@ -164,6 +173,7 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
             report.pop("active_command", None)
         print(f"[{name}] exit {code}; log: {log}", flush=True)
         if code:
+            print_failure_tail(log)
             result["error"] = "command failed; later commands were not run"
             return result
     after = source_state(root, [name], platform_name)

@@ -25,7 +25,7 @@ def test_missing_workspace_is_failure(tmp_path):
     assert "missing workspace" in result["error"]
 
 
-def test_command_failure_stops_workspace_and_keeps_log(tmp_path, monkeypatch):
+def test_command_failure_stops_workspace_and_keeps_log(tmp_path, monkeypatch, capsys):
     _, output = fake_workspace(tmp_path, monkeypatch)
     monkeypatch.setattr(qa, "commands_for", lambda *_: [
         (sys.executable, "-c", "print('compile failure'); raise SystemExit(7)"),
@@ -36,6 +36,17 @@ def test_command_failure_stops_workspace_and_keeps_log(tmp_path, monkeypatch):
     assert len(result["commands"]) == 1
     assert result["commands"][0]["exit_code"] == 7
     assert "compile failure" in Path(result["commands"][0]["log"]).read_text()
+    assert "compile failure" in capsys.readouterr().out
+
+
+def test_failure_tail_is_limited_to_last_eighty_lines(tmp_path, capsys):
+    log = tmp_path / "failed.log"
+    log.write_text("".join(f"line {number}\n" for number in range(100)))
+    qa.print_failure_tail(log)
+    output = capsys.readouterr().out
+    assert "line 19\n" not in output
+    assert "line 20\n" in output
+    assert "line 99\n" in output
 
 
 def test_successful_command_cannot_change_lockfile(tmp_path, monkeypatch):
