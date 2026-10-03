@@ -32,5 +32,7 @@ run_check daw-band-split-tests sotf-daw cargo test -p sotf-plugin-band-split --l
 run_check daw-band-split-check sotf-daw cargo check -p sotf-plugin-band-split --all-targets --locked
 run_check daw-nalgebra-consumer-tests sotf-daw cargo test -p sotf-plugin-ambisonics -p sotf-plugin-beamformer --lib --locked
 run_check daw-nalgebra-consumer-check sotf-daw cargo check -p sotf-plugin-ambisonics -p sotf-plugin-beamformer --all-targets --locked
+run_check daw-nnnoiseless-tests sotf-daw cargo test -p nnnoiseless --locked
+run_check daw-denoiser-tests sotf-daw cargo test -p plugins-denoiser --locked
 
 exit "$failed"
