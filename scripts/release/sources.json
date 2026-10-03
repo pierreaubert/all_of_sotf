@@ -7,7 +7,7 @@
       "revision": "7ee5645660ffe7c99b3dc9c8e1b133ec019981f6"
     },
     "gpui-toolkit": {
-      "revision": "bca93900530db77f087bc3492c3ba5ecb28d5d8e"
+      "revision": "c351e907806b8c511b47687f1166722102133f65"
     },
     "math-audio": {
       "revision": "4aa95f5db6272b4105236554bbac2bc8ab714ef4"
@@ -16,13 +16,13 @@
       "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
     },
     "sotf": {
-      "revision": "7c5014d670a976406a1044752ed4647f9e16bc77"
+      "revision": "7e42392676150bd6e8f1490a33b35ccb86f03d4d"
     },
     "sotf-capture": {
       "revision": "e6a2cced499357d5ce30940764ec6c824d1cdbcb"
     },
     "sotf-daw": {
-      "revision": "3395d394475afca13151b343ed761f4eeffec507"
+      "revision": "8dd82748e2f1e0048e8e8794dcc952195bdeddd4"
     },
     "sotf-systemwide": {
       "revision": "3f645a3de3abf1c28c76da2d562a6ec8c4d9ad2d"

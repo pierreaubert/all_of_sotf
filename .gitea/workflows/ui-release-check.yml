@@ -1,0 +1,75 @@
+name: Display-required release UI QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Run macOS UI QA with a display
+        run: bash scripts/release/ui_check.sh macos
+      - name: Upload macOS UI evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-ui-macos
+          path: |
+            checkout-sources.log
+            release-ui-evidence-macos/
+            sotf/target/qa-gpui/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: x86:linux:host
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Require Xvfb and run Linux UI QA with a display
+        run: |
+          mkdir -p release-ui-evidence-linux
+          if ! command -v xvfb-run || ! command -v Xvfb; then
+            echo 'Xvfb is required for Linux release UI QA' | tee release-ui-evidence-linux/display-error.log
+            exit 1
+          fi
+          xvfb-run -a -s '-screen 0 2560x1600x24' bash scripts/release/ui_check.sh linux
+      - name: Upload Linux UI evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-ui-linux
+          path: |
+            checkout-sources.log
+            release-ui-evidence-linux/
+            sotf/target/qa-gpui/
+          if-no-files-found: warn
