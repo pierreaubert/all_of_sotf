@@ -20,7 +20,7 @@ on:
 jobs:
   macos:
     if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos')
-    runs-on: m4:macos:host
+    runs-on: m4
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
