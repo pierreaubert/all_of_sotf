@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Align external dependency versions across the six sibling Rust workspaces.
+"""Align external dependency versions across the inventoried Rust workspaces.
 
-The repository contains six independent Cargo workspaces (no top-level
+The repository contains independent Cargo workspaces (no top-level
 Cargo.toml). This script scans every Cargo.toml under those roots, finds
 external crates that are declared with different version requirements, and
 optionally rewrites them all to use a single chosen version.
 
 Usage:
-    python3 scripts/align_crate_versions.py            # report only
-    python3 scripts/align_crate_versions.py --apply    # rewrite files
+    python3 scripts/align-crates/align_crate_versions.py            # report only
+    python3 scripts/align-crates/align_crate_versions.py --apply    # rewrite files
 
 Path dependencies and git dependencies without a `version` key are ignored,
 because their effective version is determined by the source, not the version
@@ -21,8 +21,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
+from collections.abc import Mapping
 from functools import total_ordering
 from collections import defaultdict
 from pathlib import Path
@@ -30,24 +32,24 @@ from typing import Any
 
 import tomllib
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from workspaces import workspace_names
+
 try:
     import tomlkit
 except ImportError:  # pragma: no cover
     tomlkit = None
 
-ROOTS = [
-    "sotf",
-    "autoeq",
-    "math-audio",
-    "gpui-toolkit",
-    "sofa-reader",
-    "symphonia-add-ons",
-]
+ROOTS = workspace_names()
 
 # Directories that are git worktrees, experiment worktrees, build output, or
 # vendored forks used as [patch] sources. Their dependency versions are
 # intentionally independent of the main workspace declarations.
-IGNORED_DIR_PARTS = {"target", ".git", ".worktrees", ".evo", "3rdparties"}
+IGNORED_DIR_PARTS = {
+    "target", "target-static", ".docker-target", ".git", ".worktrees",
+    "worktrees", ".muse", ".evo", "3rdparties", "vendor", "node_modules",
+    "venv", ".venv", "data_generated", "dist", "audit", ".tokensave",
+}
 
 # These crates are coupled to platform/audio/UI behavior and should not be
 # bumped by the automatic fixer unless the caller explicitly opts in.
@@ -97,16 +99,24 @@ def require_tomlkit() -> Any:
 
 
 def find_cargo_tomls(repo_root: Path) -> list[Path]:
-    """Return every Cargo.toml under the six workspace roots, excluding ignored dirs."""
+    """Find manifests without traversing worktrees, snapshots, or build output."""
     files: list[Path] = []
     for name in ROOTS:
         root = repo_root / name
         if not root.is_dir():
             continue
-        for path in root.rglob("Cargo.toml"):
-            if not IGNORED_DIR_PARTS.isdisjoint(path.parts):
-                continue
-            files.append(path)
+        for directory, subdirs, filenames in os.walk(root, followlinks=False):
+            base = Path(directory)
+            subdirs[:] = [
+                name for name in subdirs
+                if name not in IGNORED_DIR_PARTS
+                and not (base / name).is_symlink()
+                and not (base / name / ".git").exists()
+            ]
+            if "Cargo.toml" in filenames:
+                path = base / "Cargo.toml"
+                if not path.is_symlink():
+                    files.append(path)
     files.sort()
     return files
 
@@ -124,9 +134,12 @@ def dependency_sections(doc: dict[str, Any]) -> dict[str, dict[str, Any]]:
         ws = doc["workspace"]
         if "dependencies" in ws:
             sections["workspace.dependencies"] = ws["dependencies"]
-    # Target-specific dependency sections are ignored for version alignment:
-    # they almost always use `workspace = true` in this repo, and handling their
-    # cfg keys adds complexity without changing the alignment outcome.
+    for target, target_doc in doc.get("target", {}).items():
+        if not isinstance(target_doc, dict):
+            continue
+        for kind in ("dependencies", "dev-dependencies", "build-dependencies"):
+            if kind in target_doc:
+                sections[f"target.{target}.{kind}"] = target_doc[kind]
     return sections
 
 
@@ -141,7 +154,7 @@ def package_info(key: str, value: Any) -> tuple[str, str, str] | None:
     """
     if isinstance(value, str):
         return key, value, "crates.io"
-    if not isinstance(value, dict):
+    if not isinstance(value, Mapping):
         return None
     if "path" in value:
         return None
@@ -261,7 +274,7 @@ def report_conflicts(
 
     if not conflicts:
         if not skipped:
-            print("No version mismatches found across the six workspaces.")
+            print("No version mismatches found across the inventoried workspaces.")
         else:
             print("No additional alignable version mismatches found.")
         return 0
@@ -292,7 +305,8 @@ def build_change_map(
     allow_major: bool = False,
 ) -> dict[Path, dict[str, dict[str, str]]]:
     """Map file -> section -> package-name -> target-version."""
-    risky_packages = risky_packages or DEFAULT_RISKY_PACKAGES
+    if risky_packages is None:
+        risky_packages = DEFAULT_RISKY_PACKAGES
     changes: dict[Path, dict[str, dict[str, str]]] = defaultdict(
         lambda: defaultdict(dict)
     )
@@ -325,21 +339,7 @@ def report_change_plan(
         risky_packages=risky_packages,
         allow_major=allow_major,
     )
-    risky_skipped = sorted(
-        pkg for pkg in conflicts if is_risky_package(pkg, risky_packages)
-    )
-
-    if skipped:
-        print(f"Skipped {len(skipped)} package(s) with mixed sources:\n")
-        for pkg in sorted(skipped):
-            print(f"  {pkg}: {', '.join(sorted(skipped[pkg]))}")
-        print()
-
-    if risky_skipped:
-        print(f"Skipped {len(risky_skipped)} risky package(s):")
-        for pkg in risky_skipped:
-            print(f"  {pkg}")
-        print()
+    report_skipped_conflicts(conflicts, skipped, risky_packages, allow_major)
 
     if not changes:
         print("No safe version mismatches to fix.")
@@ -351,6 +351,32 @@ def report_change_plan(
         for section in sorted(changes[path]):
             for pkg in sorted(changes[path][section]):
                 print(f"  {section}.{pkg} -> {changes[path][section][pkg]}")
+        print()
+
+    print("Run again with --apply to rewrite these direct dependency declarations.")
+    return 1
+
+
+def report_skipped_conflicts(
+    conflicts: dict[str, dict[str, list[tuple[Path, str]]]],
+    skipped: dict[str, set[str]],
+    risky_packages: set[str],
+    allow_major: bool,
+) -> None:
+    """Show mismatches that automatic alignment leaves untouched."""
+    if skipped:
+        print(f"Skipped {len(skipped)} package(s) with mixed sources:\n")
+        for pkg in sorted(skipped):
+            print(f"  {pkg}: {', '.join(sorted(skipped[pkg]))}")
+        print()
+
+    risky_skipped = sorted(
+        pkg for pkg in conflicts if is_risky_package(pkg, risky_packages)
+    )
+    if risky_skipped:
+        print(f"Skipped {len(risky_skipped)} risky package(s):")
+        for pkg in risky_skipped:
+            print(f"  {pkg}: {', '.join(sorted(conflicts[pkg], key=version_sort_key))}")
         print()
 
     unsafe_major = []
@@ -366,16 +392,17 @@ def report_change_plan(
             print(f"  {pkg}: {', '.join(sorted(conflicts[pkg], key=version_sort_key))}")
         print()
 
-    print("Run again with --apply to rewrite these direct dependency declarations.")
-    return 1
-
 
 def align_versions(
     repo_root: Path,
     conflicts: dict[str, dict[str, list[tuple[Path, str]]]],
     risky_packages: set[str] | None = None,
     allow_major: bool = False,
+    skipped: dict[str, set[str]] | None = None,
 ) -> int:
+    if risky_packages is None:
+        risky_packages = DEFAULT_RISKY_PACKAGES
+    report_skipped_conflicts(conflicts, skipped or {}, risky_packages, allow_major)
     if not conflicts:
         print("No version mismatches to fix.")
         return 0
@@ -397,16 +424,21 @@ def align_versions(
             if section == "workspace.dependencies":
                 ws = doc.setdefault("workspace", tk.table())
                 container = ws.setdefault("dependencies", tk.table())
+            elif section.startswith("target."):
+                target_section, _, kind = section.rpartition(".")
+                target = target_section.removeprefix("target.")
+                container = doc["target"][target][kind]
             else:
                 container = doc.setdefault(section, tk.table())
 
-            for pkg, target in deps.items():
-                value = container.get(pkg)
-                if value is None:
+            for key, value in list(container.items()):
+                info = package_info(key, value)
+                if info is None or info[0] not in deps:
                     continue
+                target = deps[info[0]]
                 if isinstance(value, tk.items.String):
-                    container[pkg] = target
-                elif isinstance(value, tk.items.InlineTable):
+                    container[key] = target
+                elif isinstance(value, (tk.items.InlineTable, tk.items.Table)):
                     if "version" in value:
                         value["version"] = target
                     # If the table only has `package = "..."` and no version,
@@ -415,7 +447,8 @@ def align_versions(
         path.write_text(tk.dumps(doc), encoding="utf-8")
         print(f"updated {path.relative_to(repo_root)}")
 
-    print(f"\nAligned {len(conflicts)} package(s) across {len(changes)} file(s).")
+    changed_packages = {pkg for sections in changes.values() for deps in sections.values() for pkg in deps}
+    print(f"\nAligned {len(changed_packages)} package(s) across {len(changes)} file(s).")
     return 0
 
 
@@ -429,13 +462,14 @@ def collect_sotf_duplicates(
       than one version
     - workspace_member_names: set of package names that are workspace members
     """
-    sotf_manifest = repo_root / "sotf" / "Cargo.toml"
+    sotf_manifest = repo_root.resolve() / "sotf" / "Cargo.toml"
     if not sotf_manifest.exists():
         return {}, set()
 
     cmd = [
         "cargo",
         "metadata",
+        "--locked",
         "--format-version",
         "1",
         "--manifest-path",
@@ -443,7 +477,7 @@ def collect_sotf_duplicates(
     ]
     result = subprocess.run(
         cmd,
-        cwd=repo_root,
+        cwd=sotf_manifest.parent,
         capture_output=True,
         text=True,
         check=False,
@@ -452,16 +486,17 @@ def collect_sotf_duplicates(
         raise SystemExit(f"cargo metadata failed:\n{result.stderr}")
 
     metadata = json.loads(result.stdout)
+    member_ids = set(metadata.get("workspace_members", []))
     workspace_member_names = {
-        member.split(None, 1)[0]
-        for member in metadata.get("workspace_members", [])
+        package["name"] for package in metadata.get("packages", [])
+        if package["id"] in member_ids
     }
 
     versions_by_name: dict[str, set[str]] = defaultdict(set)
     for package in metadata.get("packages", []):
         name = package["name"]
         version = package["version"]
-        if name in workspace_member_names:
+        if package["id"] in member_ids:
             continue
         versions_by_name[name].add(version)
 
@@ -473,7 +508,7 @@ def collect_sotf_duplicates(
     return duplicates, workspace_member_names
 
 
-ALLOWLIST_PATH = Path("align-crates") / "sotf_duplicate_allowlist.toml"
+ALLOWLIST_PATH = Path("scripts") / "align-crates" / "sotf_duplicate_allowlist.toml"
 
 
 def load_allowlist(path: Path) -> dict[str, set[str]]:
@@ -545,7 +580,7 @@ def main() -> int:
         "--root",
         type=Path,
         default=Path.cwd(),
-        help="Repository root containing the six workspace directories.",
+        help="Repository root containing the inventoried workspace directories.",
     )
     parser.add_argument(
         "--risky-package",
@@ -594,6 +629,7 @@ def main() -> int:
         conflicts,
         risky_packages=risky_packages,
         allow_major=args.allow_major,
+        skipped=skipped,
     )
 
 

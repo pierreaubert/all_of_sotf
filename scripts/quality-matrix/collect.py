@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Static software-quality collector for the extracted Polkadot repositories.
+Static software-quality collector for the SOTF repository family.
 Produces quality-matrix/scores.json and quality-matrix/matrix.md.
 """
 
@@ -30,7 +30,7 @@ SKIP_DIRS = {
     ".git", "target", ".tokensave", "node_modules", ".venv", "venv",
     "__pycache__", ".pytest_cache", "data_generated", "fuzzer_output",
     "build", "dist", ".idea", ".vscode", ".ruff_cache", ".docker-target",
-    ".worktrees", ".evo",
+    ".worktrees", "worktrees", ".muse", ".evo", "audit",
 }
 
 

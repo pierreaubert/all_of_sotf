@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "server": "http://192.168.1.32:3001",
+  "owner": "pierre",
+  "sources": {
+    "autoeq": {
+      "revision": "53700cbbcaa59f4602228dd98f38277d3fbc7736"
+    },
+    "gpui-toolkit": {
+      "revision": "b7036c905eaec2c88085a445d9c1f588914c2152"
+    },
+    "math-audio": {
+      "revision": "bc3afa204820bb8783fd75e4b8592248cd7500b6"
+    },
+    "sofa-reader": {
+      "revision": "e661c0cbf165dc2b5c7ca1e0c71ecbfdc2c1097e"
+    },
+    "sotf": {
+      "revision": "8c6c8653b5342a7cb6d13c5b3e1f995d01b03176"
+    },
+    "sotf-capture": {
+      "revision": "248d1f7be1f9a5e3460e23ece0c5b92612d0f299"
+    },
+    "sotf-daw": {
+      "revision": "3be294472fdb6fcfc4cb8ec658d8670cf7027e4a"
+    },
+    "sotf-systemwide": {
+      "revision": "e5488aa3974ea4517f8f847658e23d28b021ca5c"
+    },
+    "symphonia-add-ons": {
+      "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
+    }
+  }
+}

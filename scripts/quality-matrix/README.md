@@ -1,10 +1,10 @@
 # Software Quality Matrix Methodology
 
-This directory contains a reproducible, static assessment of the 23 repositories extracted under `/Users/pierrre/src.local/polkadot`.
+This directory contains a static assessment of the nine Rust repositories in `all_of_sotf`. Scores describe the inspected revision; they are not a release QA pass.
 
 ## Files
 
-- `repos.json` — repository inventory (language, build system, test frameworks).
+- `repos.json` — shared repository inventory consumed by quality collection, dependency alignment, Bacon, and Buildbot through `../workspaces.py`.
 - `collect.py` — static collector and scoring engine.
 - `execute_quality.py` — execution-based checker that runs tests, coverage and benchmarks.
 - `scores.json` — machine-readable scores per repository.
