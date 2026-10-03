@@ -7,8 +7,8 @@ if [ "$platform" != macos ] && [ "$platform" != linux ]; then
     printf 'unsupported platform: %s\n' "$platform" >&2
     exit 2
 fi
-mkdir -p "$output"
-cp scripts/release/sources.json "$output/sources.json"
+mkdir -p "$output" || exit 1
+cp scripts/release/sources.json "$output/sources.json" || exit 1
 {
     date -u
     uname -a
@@ -74,13 +74,91 @@ run_check() {
             failed=1
         fi
     fi
+    return "$status"
+}
+
+run_bounded_check() {
+    local name=$1 workspace=$2 seconds=$3
+    shift 3
+    local log="$output/$name.log"
+    printf '[%s] timeout %ss: %s\n' "$name" "$seconds" "$*"
+    (cd "$workspace" && exec python3 - "$seconds" "$@" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+
+seconds = int(sys.argv[1])
+process = subprocess.Popen(sys.argv[2:], start_new_session=True)
+interrupted = None
+
+def forward_signal(signum, _frame):
+    global interrupted
+    interrupted = signum
+    raise KeyboardInterrupt
+
+def signal_group(signum):
+    try:
+        os.killpg(process.pid, signum)
+    except ProcessLookupError:
+        pass
+
+def cleanup_group():
+    signal_group(signal.SIGTERM)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+    # The group can retain grandchildren after its leader exits.
+    signal_group(signal.SIGKILL)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        print("owned test process did not reap after SIGKILL", file=sys.stderr, flush=True)
+        return False
+    return True
+
+signal.signal(signal.SIGTERM, forward_signal)
+signal.signal(signal.SIGINT, forward_signal)
+try:
+    status = process.wait(timeout=seconds)
+except subprocess.TimeoutExpired:
+    print(f"process exceeded {seconds}s: {sys.argv[2:]}", file=sys.stderr, flush=True)
+    status = 124
+except KeyboardInterrupt:
+    print(f"test wrapper interrupted by signal {interrupted}", file=sys.stderr, flush=True)
+    status = 128 + (interrupted or signal.SIGINT)
+finally:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    if not cleanup_group() and status == 0:
+        status = 1
+raise SystemExit(status)
+PY
+    ) >"$log" 2>&1
+    local status=$?
+    printf '[%s] exit %s; log: %s\n' "$name" "$status" "$log"
+    if [ "$status" -ne 0 ]; then
+        tail -n 80 "$log"
+        failed=1
+    fi
 }
 
 run_check daw-engine-lab-tests sotf-daw cargo test -p sotf-engine --lib --locked lab_tests
 run_check daw-engine-all-targets sotf-daw cargo check -p sotf-engine --all-targets --locked
-run_check systemwide-ipc-lab-tests sotf-systemwide cargo test -p sotf-daemon --test ipc_line_tests --locked systemwide_lab_
-if [ "$platform" = macos ]; then
-    run_check systemwide-isolated-lab sotf-systemwide just systemwide-lab
+if run_check systemwide-ipc-lab-compile sotf-systemwide cargo test -p sotf-daemon --test ipc_line_tests --locked --no-run; then
+    for test_name in systemwide_lab_restarts_with_a_fresh_coherent_snapshot systemwide_lab_scenario_matrix_over_unix_socket; do
+        run_bounded_check "$test_name" sotf-systemwide 180 \
+            cargo test -p sotf-daemon --test ipc_line_tests --locked "$test_name" -- --exact --nocapture --test-threads=1
+        if ! grep -Fq "test ${test_name} ..." "$output/$test_name.log" || \
+            ! grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$output/$test_name.log"; then
+            printf '[%s] required lab test did not pass\n' "$test_name" >&2
+            failed=1
+        fi
+    done
+fi
+if [ "$platform" = macos ] && [ "$failed" -eq 0 ]; then
+    run_bounded_check systemwide-isolated-lab sotf-systemwide 1200 just systemwide-lab
 fi
 
 source_state after || failed=1
