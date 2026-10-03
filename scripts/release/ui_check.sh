@@ -34,13 +34,17 @@ run_check() {
         tail -n 80 "$log"
         failed=1
     fi
+    return "$status"
 }
 
 run_check toolkit-horizontal-accordion gpui-toolkit yes cargo test --locked -p gpui-ui-kit --test integration_tests horizontal_accordion_content_spans_header_width
 run_check toolkit-side-accordion gpui-toolkit yes cargo test --locked -p gpui-ui-kit --test integration_tests side_accordion_places_tabs_on_both_sides_of_content
 run_check toolkit-wizard-width gpui-toolkit yes cargo test --locked -p gpui-ui-kit --test integration_tests wizard_step_labels_follow_rendered_viewport_width
-run_check sotf-dev-driver-build sotf no just dev-driver-build-gpui
-run_check sotf-plugin-workflow-ui sotf no cargo run --locked -p sotf-dev-driver -- run-suite crates/sotf-dev-driver/suites/plugin_workflow_ui.toml -v
+if run_check sotf-dev-driver-build sotf no just dev-driver-build-gpui; then
+    run_check sotf-plugin-workflow-ui sotf no cargo run --locked -p sotf-dev-driver -- run-suite crates/sotf-dev-driver/suites/plugin_workflow_ui.toml -v
+else
+    printf 'NOT_RUN: sotf-dev-driver-build failed\n' | tee "$output/sotf-plugin-workflow-ui.log"
+fi
 
 git -C sotf status --porcelain -- Cargo.lock >"$output/sotf-lock-status.txt"
 if [ -s "$output/sotf-lock-status.txt" ]; then

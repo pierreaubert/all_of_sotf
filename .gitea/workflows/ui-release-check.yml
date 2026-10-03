@@ -41,7 +41,7 @@ jobs:
 
   linux:
     if: inputs.platform == 'all' || inputs.platform == 'linux'
-    runs-on: x86:linux:host
+    runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +49,38 @@ jobs:
           persist-credentials: false
       - name: Require Python 3.11 or newer
         run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Prepare disposable Linux UI environment
+        run: |
+          set -euo pipefail
+          mkdir -p release-ui-evidence-linux
+          exec > >(tee release-ui-evidence-linux/prerequisite.log) 2>&1
+          uname -a
+          id
+          for tool in cargo rustc just; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool is required for Linux release UI QA"
+              exit 1
+            fi
+          done
+          if ! command -v Xvfb >/dev/null 2>&1 || ! command -v xvfb-run >/dev/null 2>&1 || ! command -v xauth >/dev/null 2>&1; then
+            if [ ! -f /.dockerenv ]; then
+              echo 'Xvfb setup requires a disposable container; refusing host package changes'
+              exit 1
+            fi
+            if [ "$(id -u)" -eq 0 ]; then
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb xauth
+            elif command -v sudo >/dev/null 2>&1 && sudo -n true; then
+              sudo -n apt-get update
+              sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb xauth
+            else
+              echo 'Disposable Linux runner cannot install Xvfb and xauth'
+              exit 1
+            fi
+          fi
+          command -v Xvfb
+          command -v xvfb-run
+          command -v xauth
       - name: Checkout pinned sibling repositories
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
@@ -58,8 +90,8 @@ jobs:
       - name: Require Xvfb and run Linux UI QA with a display
         run: |
           mkdir -p release-ui-evidence-linux
-          if ! command -v xvfb-run || ! command -v Xvfb; then
-            echo 'Xvfb is required for Linux release UI QA' | tee release-ui-evidence-linux/display-error.log
+          if ! command -v xvfb-run || ! command -v Xvfb || ! command -v xauth; then
+            echo 'Xvfb and xauth are required for Linux release UI QA' | tee release-ui-evidence-linux/display-error.log
             exit 1
           fi
           xvfb-run -a -s '-screen 0 2560x1600x24' bash scripts/release/ui_check.sh linux
