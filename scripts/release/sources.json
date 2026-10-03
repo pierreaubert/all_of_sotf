@@ -16,16 +16,16 @@
       "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
     },
     "sotf": {
-      "revision": "10f7cca8dfe114d5d86769c064a18192fd4f4eda"
+      "revision": "0b1490728bae2b2f8c257270e704400595f38ed4"
     },
     "sotf-capture": {
       "revision": "e6a2cced499357d5ce30940764ec6c824d1cdbcb"
     },
     "sotf-daw": {
-      "revision": "9a66fe8f2688e134283a0177f379b25f3f6e1572"
+      "revision": "e700b69d8afbbc15deab4bbe8bf503233b30d537"
     },
     "sotf-systemwide": {
-      "revision": "d9f2cb8a950df4c2646827d40035eb0bebd2e296"
+      "revision": "b3f6ce5766aa02e6bd6ab03312d44f8d601fc465"
     },
     "symphonia-add-ons": {
       "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
