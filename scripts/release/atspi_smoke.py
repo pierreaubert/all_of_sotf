@@ -161,7 +161,12 @@ def main() -> int:
                         if studio is None:
                             return True
                         result["tree_before"] = tree
-                        if any((node.name or "") == "Add a plugin to get started" for node in nodes):
+                        if any(
+                            (node.name or "") == "Studio"
+                            and node.getRole() == pyatspi.ROLE_COMBO_BOX
+                            and node.getState().contains(pyatspi.STATE_SHOWING)
+                            for node in nodes
+                        ):
                             raise RuntimeError("Studio rack was already present before AT-SPI action")
                         component = studio.queryComponent()
                         result["focus_requested"] = bool(component.grabFocus())
@@ -174,11 +179,22 @@ def main() -> int:
                         result["action_invoked"] = True
                         return True
                     result["tree_after"] = tree
-                    result["studio_rack_visible"] = any(
-                        (node.name or "") == "Add a plugin to get started"
+                    studio_picker_visible = any(
+                        (node.name or "") == "Studio"
+                        and node.getRole() == pyatspi.ROLE_COMBO_BOX
                         and node.getState().contains(pyatspi.STATE_SHOWING)
                         for node in nodes
                     )
+                    rack_content_visible = any(
+                        (node.name or "") in (
+                            "Add a plugin to get started",
+                            "Bypass plugin",
+                            "Plugin configuration",
+                        )
+                        and node.getState().contains(pyatspi.STATE_SHOWING)
+                        for node in nodes
+                    )
+                    result["studio_rack_visible"] = studio_picker_visible and rack_content_visible
                     result["focus_event_seen"] = any(
                         event["type"] == "object:state-changed:focused"
                         and event["source"] == "Studio"
