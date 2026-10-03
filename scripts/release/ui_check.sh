@@ -45,6 +45,9 @@ if [ "$platform" = linux ]; then
 fi
 if run_check sotf-dev-driver-build sotf no just dev-driver-build-gpui; then
     run_check sotf-plugin-workflow-ui sotf no cargo run --locked -p sotf-dev-driver -- run-suite crates/sotf-dev-driver/suites/plugin_workflow_ui.toml -v
+    if [ "$platform" = linux ]; then
+        run_check sotf-atspi-session-bus sotf no /usr/bin/python3 ../scripts/release/atspi_smoke.py
+    fi
 else
     printf 'NOT_RUN: sotf-dev-driver-build failed\n' | tee "$output/sotf-plugin-workflow-ui.log"
 fi

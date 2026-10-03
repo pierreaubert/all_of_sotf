@@ -74,7 +74,7 @@ jobs:
             libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libxrandr-dev libxi-dev libxcursor-dev \
             libegl1-mesa-dev libgl1-mesa-dev libgl1-mesa-dri mesa-vulkan-drivers \
-            xvfb xauth xdotool imagemagick
+            xvfb xauth xdotool imagemagick dbus dbus-x11 at-spi2-core python3-pyatspi python3-gi
           if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
             curl --fail --location --silent --show-error \
               https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
@@ -97,6 +97,8 @@ jobs:
           command -v Xvfb
           command -v xvfb-run
           command -v xauth
+          command -v dbus-run-session
+          /usr/bin/python3 -c 'import gi, pyatspi; print("system AT-SPI Python ready")'
       - name: Checkout pinned sibling repositories
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
@@ -111,7 +113,11 @@ jobs:
             echo 'Xvfb and xauth are required for Linux release UI QA' | tee release-ui-evidence-linux/display-error.log
             exit 1
           fi
-          xvfb-run -a -s '-screen 0 2560x1600x24' bash scripts/release/ui_check.sh linux
+          runtime_dir=$(mktemp -d)
+          chmod 700 "$runtime_dir"
+          trap 'rm -rf "$runtime_dir"' EXIT
+          export XDG_RUNTIME_DIR="$runtime_dir"
+          dbus-run-session -- xvfb-run -a -s '-screen 0 2560x1600x24' bash scripts/release/ui_check.sh linux
       - name: Upload Linux UI evidence
         if: always()
         uses: actions/upload-artifact@v3
