@@ -1,0 +1,3 @@
+[submodule "ms-rust-skill"]
+	path = skills/ms-rust-skill
+	url = https://gitlab.com/lx-industries/ms-rust-skill.git
