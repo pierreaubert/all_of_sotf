@@ -43,6 +43,10 @@ jobs:
     if: inputs.platform == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,27 +60,38 @@ jobs:
           exec > >(tee release-ui-evidence-linux/prerequisite.log) 2>&1
           uname -a
           id
-          for tool in cargo rustc just; do
-            if ! command -v "$tool" >/dev/null 2>&1; then
-              echo "$tool is required for Linux release UI QA"
-              exit 1
-            fi
-          done
-          if ! command -v Xvfb >/dev/null 2>&1 || ! command -v xvfb-run >/dev/null 2>&1 || ! command -v xauth >/dev/null 2>&1; then
-            if [ ! -f /.dockerenv ]; then
-              echo 'Xvfb setup requires a disposable container; refusing host package changes'
-              exit 1
-            fi
-            if [ "$(id -u)" -eq 0 ]; then
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb xauth
-            elif command -v sudo >/dev/null 2>&1 && sudo -n true; then
-              sudo -n apt-get update
-              sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb xauth
-            else
-              echo 'Disposable Linux runner cannot install Xvfb and xauth'
-              exit 1
-            fi
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'Linux UI setup requires the disposable root-owned Gitea container; refusing host package changes'
+            exit 1
+          fi
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang cmake ninja-build pkg-config libssl-dev \
+            libasound2-dev libclang-dev libglib2.0-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libfontconfig1-dev libfreetype6-dev libwayland-dev \
+            libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxrandr-dev libxi-dev libxcursor-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libgl1-mesa-dri mesa-vulkan-drivers \
+            xvfb xauth xdotool imagemagick
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/sotf-rustup-init
+            chmod +x /tmp/sotf-rustup-init
+            /tmp/sotf-rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          if ! command -v just >/dev/null 2>&1 || [ "$(just --version)" != 'just 1.58.0' ]; then
+            cargo install just --version 1.58.0 --locked --force
+          fi
+          rustc --version
+          cargo --version
+          just --version
+          if [ "$(rustc --version | awk '{print $2}')" != '1.99.0' ] || [ "$(just --version)" != 'just 1.58.0' ]; then
+            echo 'Linux UI toolchain versions differ from the pinned release QA versions'
+            exit 1
           fi
           command -v Xvfb
           command -v xvfb-run
@@ -89,6 +104,7 @@ jobs:
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
       - name: Require Xvfb and run Linux UI QA with a display
         run: |
+          export PATH="$CARGO_HOME/bin:$PATH"
           mkdir -p release-ui-evidence-linux
           if ! command -v xvfb-run || ! command -v Xvfb || ! command -v xauth; then
             echo 'Xvfb and xauth are required for Linux release UI QA' | tee release-ui-evidence-linux/display-error.log
