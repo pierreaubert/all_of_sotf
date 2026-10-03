@@ -14,7 +14,7 @@ jobs:
       - name: Probe configured Windows guest and Equalizer APO
         run: |
           set -o pipefail
-          bash scripts/release/utm_equalizer_apo_preflight.sh 2>&1 | tee utm-equalizer-apo-preflight.log
+          python3 scripts/release/with_utm_vm_lock.py --vm "${ROOMEQ_EQUALIZER_APO_UTM_VM:-Win11 ARM AutoEQ}" -- bash scripts/release/utm_equalizer_apo_preflight.sh 2>&1 | tee utm-equalizer-apo-preflight.log
       - name: Upload preflight evidence
         if: always()
         uses: actions/upload-artifact@v3
