@@ -36,5 +36,6 @@ run_check daw-nnnoiseless-tests sotf-daw cargo test -p nnnoiseless --locked
 run_check daw-denoiser-tests sotf-daw cargo test -p plugins-denoiser --locked
 run_check daw-room-eq-graph-tests sotf-daw cargo test -p sotf-room-eq-graph --locked
 run_check sotf-spotify-tests sotf cargo test -p sotf-service-spotify --locked
+run_check sotf-player-tests sotf cargo test -p sotf-player --lib --locked
 
 exit "$failed"
