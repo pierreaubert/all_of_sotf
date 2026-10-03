@@ -4,10 +4,10 @@
     "owner": "pierre",
     "sources": {
         "autoeq": {
-            "revision": "901372c62804d63b620875766c904d801f429d0f"
+            "revision": "9ad6747f92640edfbdbb10d868ef64a720d72be1"
         },
         "gpui-toolkit": {
-            "revision": "778c54532ff85d66f56a2b4c5c1d32f244c15245"
+            "revision": "ac5ba08eaafb70fc3db825b99b80c6e80818605b"
         },
         "math-audio": {
             "revision": "4aa95f5db6272b4105236554bbac2bc8ab714ef4"
@@ -16,13 +16,13 @@
             "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
         },
         "sotf": {
-            "revision": "48bb1e466e2e0aea95c78f4611716d4ee7647a88"
+            "revision": "ed6a3ed899bb6b3488cc5492479888b166b314cd"
         },
         "sotf-capture": {
             "revision": "e6a2cced499357d5ce30940764ec6c824d1cdbcb"
         },
         "sotf-daw": {
-            "revision": "e61708745b090fa79b66145473521dca4ebea3ff"
+            "revision": "ccc9a0c548423314891599c4e6886262486f7f77"
         },
         "sotf-systemwide": {
             "revision": "a3ff903ddcbfd4bce8f2c4b9407c64bc984c350f"
