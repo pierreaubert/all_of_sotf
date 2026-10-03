@@ -3,6 +3,7 @@ set -u
 
 output=${1:?evidence directory required}
 mkdir -p "$output"
+output=$(cd "$output" && pwd)
 cp scripts/release/sources.json "$output/sources.json"
 {
     date -u
@@ -36,7 +37,11 @@ run_check daw-nnnoiseless-tests sotf-daw cargo test -p nnnoiseless --locked
 run_check daw-denoiser-tests sotf-daw cargo test -p plugins-denoiser --locked
 run_check daw-room-eq-graph-tests sotf-daw cargo test -p sotf-room-eq-graph --locked
 run_check daw-midi-tests sotf-daw cargo test -p sotf-midi --locked
-run_check daw-nih-standalone-check sotf-daw cargo check -p plugins-nih --features nih_plug/standalone --locked
+if [ "${RELEASE_PLATFORM:-}" = linux ]; then
+    run_check daw-nih-standalone-check sotf-daw bash ../scripts/release/nih_standalone_check.sh "$output"
+else
+    run_check daw-nih-standalone-check sotf-daw cargo check -p plugins-nih --features nih_plug/standalone --locked
+fi
 run_check sotf-spotify-tests sotf cargo test -p sotf-service-spotify --locked
 run_check sotf-player-tests sotf cargo test -p sotf-player --lib --locked
 run_check sotf-musicbrainz-loopback-tests sotf cargo test --locked -p sotf-player --lib metadata::musicbrainz::tests:: -- --ignored --nocapture

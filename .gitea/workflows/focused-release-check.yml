@@ -55,6 +55,8 @@ jobs:
           set -o pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
       - name: Check crossover regression and band-split plugin
+        env:
+          RELEASE_PLATFORM: linux
         run: bash scripts/release/focused_check.sh focused-evidence-linux
       - name: Upload focused Linux evidence
         if: always()
