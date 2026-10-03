@@ -1,0 +1,87 @@
+name: AutoEQ full QA, sharded without reduced coverage
+
+on:
+  workflow_dispatch:
+
+jobs:
+  lane:
+    runs-on: x86:linux:host
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        lane: [autoeq, coverage-iir, coverage-fir, coverage-mixed, coverage-mixed_phase, quality, generated, synthetic, features, acoustic, fuzzer, export]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Build native x86 PipeWire QA base for export lane
+        if: matrix.lane == 'export'
+        run: |
+          set -euo pipefail
+          mkdir -p autoeq-pipewire-evidence
+          exec > >(tee autoeq-pipewire-evidence/image-build.log) 2>&1
+          base_tag=rust:1.99.0-bookworm
+          docker info --format '{{.ServerVersion}} {{.OSType}}/{{.Architecture}}'
+          docker pull --platform linux/amd64 "$base_tag"
+          base_digest=$(docker image inspect "$base_tag" --format '{{index .RepoDigests 0}}')
+          test -n "$base_digest"
+          printf '%s\n' "$base_digest" > autoeq-pipewire-evidence/rust-base-digest.txt
+          docker build --platform linux/amd64 \
+            --build-arg RUST_BASE_IMAGE="$base_digest" \
+            --iidfile autoeq-pipewire-evidence/base-image-id.txt \
+            -f scripts/release/Dockerfile.autoeq-pipewire-base scripts/release
+          image_id=$(cat autoeq-pipewire-evidence/base-image-id.txt)
+          docker image inspect "$image_id" > autoeq-pipewire-evidence/base-image.json
+          test "$(docker image inspect "$image_id" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          docker run --rm --platform linux/amd64 "$image_id" rustc --version
+          docker run --rm --platform linux/amd64 "$image_id" bash -c 'command -v clang mold cargo rustup pipewire pw-cli'
+      - name: Run pinned QA lane
+        run: |
+          set -euo pipefail
+          if [ '${{ matrix.lane }}' = export ]; then
+            image_id=$(cat autoeq-pipewire-evidence/base-image-id.txt)
+            export AUTOEQ_PIPEWIRE_BASE_IMAGE="$image_id" AUTOEQ_PIPEWIRE_BASE_READY=1
+          fi
+          python3 scripts/release/autoeq_qa_shard.py run \
+            --lane '${{ matrix.lane }}' \
+            --output 'autoeq-shard-${{ matrix.lane }}'
+      - name: Upload source, QA, and image evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: autoeq-shard-${{ matrix.lane }}
+          path: |
+            checkout-sources.log
+            autoeq-shard-${{ matrix.lane }}/
+            autoeq-pipewire-evidence/
+          if-no-files-found: warn
+
+  verify:
+    needs: [lane]
+    if: always()
+    runs-on: x86:linux:host
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: python3 scripts/release/checkout_sources.py
+      - uses: actions/download-artifact@v3
+        with:
+          path: downloaded
+      - name: Require every shard and exact weekly case union
+        run: python3 scripts/release/autoeq_qa_shard.py verify --output downloaded
