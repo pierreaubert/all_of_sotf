@@ -12,7 +12,7 @@ on:
 jobs:
   macos:
     if: inputs.platform == 'all' || inputs.platform == 'macos'
-    runs-on: macos
+    runs-on: m4
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
