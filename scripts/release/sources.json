@@ -7,7 +7,7 @@
       "revision": "a2e2ce6b100660a34565fcc2d33015fc86062ca9"
     },
     "gpui-toolkit": {
-      "revision": "ea86e6322ca9e79b26f52659a3dc68edfc89de95"
+      "revision": "12a9b0dee478bb14b87391beccd0b7bf27af304f"
     },
     "math-audio": {
       "revision": "88aedf7c973a02c03853f2ccf98b515a2d461880"
@@ -16,16 +16,16 @@
       "revision": "af52d5d910a76a3ceffd94ed30be44e7ce3cbd5e"
     },
     "sotf": {
-      "revision": "65e125279d154246a0debea7be22b6eaaad3d04f"
+      "revision": "97feef2e5dc102c0b7e3da022e843fa9638f58b7"
     },
     "sotf-capture": {
       "revision": "2559c7db59d7234c1262cc0027a33caecdf81d24"
     },
     "sotf-daw": {
-      "revision": "296268c5b7bcb4e28467877c811700c18fe7c173"
+      "revision": "89dbbfddd6d3f9432e5b9dd77b9a55366140ec46"
     },
     "sotf-systemwide": {
-      "revision": "7972f99848575be24933c9c6cbcfb7d6039b3d8b"
+      "revision": "6382469a6ef530c8d834fda1566955d1cc896549"
     },
     "symphonia-add-ons": {
       "revision": "2a3c13b4dfa137d9fc50264c607c513505b53851"
