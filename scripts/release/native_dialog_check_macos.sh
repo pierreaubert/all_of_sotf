@@ -188,6 +188,8 @@ run_dialog() {
         sleep 0.2
     done
     if [[ -z $window ]]; then
+        "$helper" window "$active_pid" >"$output/logs/$mode-owned-windows.log" 2>&1 || :
+        cat "$output/logs/$mode-owned-windows.log" >&2
         echo "No visible panel owned by PID $active_pid for $mode" >&2
         status=1
     elif ! drive "$mode" focus "$expected" >"$output/logs/$mode-control.log" 2>&1; then
@@ -229,6 +231,10 @@ run_dialog() {
     wait "$watchdog_pid" 2>/dev/null || :
     watchdog_pid=
     if ! grep -Fqx "PASS SOTF RFD $mode" "$output/logs/$mode.log"; then status=1; fi
+    if grep -Fq 'fallback to sync dialog' "$output/logs/$mode.log"; then
+        echo "The $mode dialog used rfd's synchronous fallback" >&2
+        status=1
+    fi
     return "$status"
 }
 

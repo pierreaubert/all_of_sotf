@@ -15,7 +15,7 @@ func ownedWindow(pid: Int32) -> CGWindowID? {
     var matches: [CGWindowID] = []
     for window in windows {
         guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid,
-              (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+              (window[kCGWindowLayer as String] as? NSNumber)?.intValue == CGShieldingWindowLevel(),
               let number = window[kCGWindowNumber as String] as? NSNumber,
               let bounds = window[kCGWindowBounds as String] as? [String: Any],
               ((bounds["Width"] as? NSNumber)?.doubleValue ?? 0) > 200,
@@ -37,6 +37,16 @@ case "window":
         fail("window requires example PID")
     }
     guard let number = ownedWindow(pid: pid) else {
+        if let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+            as? [[String: Any]] {
+            for window in windows where
+                (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid {
+                let number = window[kCGWindowNumber as String] ?? "missing"
+                let layer = window[kCGWindowLayer as String] ?? "missing"
+                let bounds = window[kCGWindowBounds as String] ?? "missing"
+                fputs("owned-window pid=\(pid) id=\(number) layer=\(layer) bounds=\(bounds)\n", stderr)
+            }
+        }
         fail("expected exactly one visible native panel owned by pid=\(pid)")
     }
     print(number)
