@@ -53,10 +53,11 @@ source_state before || exit 1
 
 run_check() {
     local name=$1
-    shift
+    local workspace=$2
+    shift 2
     local log="$output/$name.log"
     printf '[%s] %s\n' "$name" "$*"
-    (cd gpui-toolkit && "$@") 2>&1 | tee "$log"
+    (cd "$workspace" && "$@") 2>&1 | tee "$log"
     local -a pipeline_status=("${PIPESTATUS[@]}")
     local status=${pipeline_status[0]}
     if [ "${pipeline_status[1]}" -ne 0 ]; then
@@ -72,9 +73,11 @@ run_check() {
     fi
 }
 
-run_check gpui-notification-condition cargo test --locked -p gpui-toolkit-gpui --features test-support --lib test_entity_notification_and_condition_wake
-run_check gpui-app-tests cargo test --locked -p gpui-toolkit-gpui --features test-support --lib
-run_check gpui-all-targets cargo check --locked -p gpui-toolkit-gpui --features test-support --all-targets
+run_check capture-full-tests sotf-capture cargo test --locked
+run_check toolkit-util-tests gpui-toolkit cargo test --locked -p gpui-toolkit-util
+run_check gpui-notification-condition gpui-toolkit cargo test --locked -p gpui-toolkit-gpui --features test-support --lib test_entity_notification_and_condition_wake
+run_check gpui-app-tests gpui-toolkit cargo test --locked -p gpui-toolkit-gpui --features test-support --lib
+run_check gpui-all-targets gpui-toolkit cargo check --locked -p gpui-toolkit-gpui --features test-support --all-targets
 
 source_state after || failed=1
 exit "$failed"
