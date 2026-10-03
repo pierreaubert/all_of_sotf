@@ -20,7 +20,7 @@ if [[ -z ${DISPLAY:-} || -z ${DBUS_SESSION_BUS_ADDRESS:-} ]]; then
     echo 'A real X display and D-Bus session are required' >&2
     exit 1
 fi
-for tool in xdotool import xdg-desktop-portal xdg-desktop-portal-gtk timeout; do
+for tool in xdotool import convert xdg-desktop-portal xdg-desktop-portal-gtk timeout; do
     command -v "$tool" >/dev/null 2>&1 || { echo "Missing $tool" >&2; exit 1; }
 done
 
@@ -76,7 +76,7 @@ abort_dialog() {
 }
 
 run_dialog() {
-    local mode=$1 expected=$2 window= attempt
+    local mode=$1 expected=$2 window= attempt mean painted=0
     printf '%s %s %s\n' "$binary" "$mode" "$expected" >>"$output/commands.txt"
     timeout 75 "$binary" "$mode" "$expected" >"$output/logs/$mode.log" 2>&1 &
     active_pid=$!
@@ -92,9 +92,20 @@ run_dialog() {
         active_pid=
         return 1
     fi
-    printf 'visible-window-id=%s\n' "$window" >>"$output/logs/$mode.log"
-    import -window root "$output/screenshots/$mode.png" || { abort_dialog; return 1; }
+    printf 'visible-window-id=%s\n' "$window" >"$output/logs/$mode-window.log"
     xdotool windowactivate --sync "$window" || { abort_dialog; return 1; }
+    for attempt in {1..50}; do
+        import -window "$window" "$output/screenshots/.$mode-probe.png" || { abort_dialog; return 1; }
+        mean=$(convert "$output/screenshots/.$mode-probe.png" -colorspace gray -format '%[fx:mean]' info:) || { abort_dialog; return 1; }
+        if awk -v mean="$mean" 'BEGIN { exit !(mean > 0.12) }'; then
+            painted=1
+            break
+        fi
+        sleep 0.2
+    done
+    rm -f "$output/screenshots/.$mode-probe.png"
+    printf 'painted-dialog=%s brightness=%s\n' "$painted" "$mean" >>"$output/logs/$mode-window.log"
+    import -window root "$output/screenshots/$mode.png" || { abort_dialog; return 1; }
     if [[ $mode == cancel ]]; then
         xdotool key --clearmodifiers Escape || { abort_dialog; return 1; }
     elif [[ $mode == save ]]; then
@@ -108,7 +119,7 @@ run_dialog() {
     fi
     wait "$active_pid" || { active_pid=; return 1; }
     active_pid=
-    grep -Fqx "PASS SOTF RFD $mode" "$output/logs/$mode.log"
+    grep -Fqx "PASS SOTF RFD $mode" "$output/logs/$mode.log" && [[ $painted == 1 ]]
 }
 
 if [[ $built == 1 ]]; then
