@@ -34,7 +34,13 @@ jobs:
       - name: Build and inspect selected artifact
         env:
           ARTIFACT_GROUP: ${{ inputs.artifact_group }}
-        run: bash scripts/release/artifact_check.sh "$ARTIFACT_GROUP" macos
+        run: |
+          set -euo pipefail
+          if [[ "$ARTIFACT_GROUP" == plugins ]]; then
+            bash scripts/release/fetch_macos_plugin_validators.sh 2>&1 | tee macos-plugin-validator-download.log
+            export PATH="$(cat release-artifact-evidence-plugins-macos/validators/bin-path.txt):$PATH"
+          fi
+          bash scripts/release/artifact_check.sh "$ARTIFACT_GROUP" macos
       - name: Upload artifact and evidence
         if: always()
         uses: actions/upload-artifact@v3
@@ -42,6 +48,7 @@ jobs:
           name: release-artifact-macos-${{ inputs.artifact_group }}
           path: |
             checkout-sources.log
+            macos-plugin-validator-download.log
             release-artifact-evidence-*/
           if-no-files-found: warn
 
