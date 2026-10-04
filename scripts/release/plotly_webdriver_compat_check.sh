@@ -317,7 +317,7 @@ run_owned() {
     return "$status"
 }
 
-run_owned "$output/supervisor-prelaunch-regression.log" "$PWD" python3 - "$work/supervise.py" "$work" <<'PY'
+cat >"$work/prelaunch_regression.py" <<'PY'
 import json
 import os
 from pathlib import Path
@@ -348,6 +348,8 @@ report = json.loads(log.with_suffix(".status.json").read_text())
 assert report["prelaunch_stop"] and report["owned_pgid"] is None
 print("supervisor_prelaunch_signal_prevents_child_launch: PASS")
 PY
+run_owned "$output/supervisor-prelaunch-regression.log" "$PWD" \
+    python3 "$work/prelaunch_regression.py" "$work/supervise.py" "$work"
 grep -Fx 'supervisor_prelaunch_signal_prevents_child_launch: PASS' \
     "$output/supervisor-prelaunch-regression.log" >/dev/null || {
     echo 'supervisor prelaunch signal regression was not observed' >&2
