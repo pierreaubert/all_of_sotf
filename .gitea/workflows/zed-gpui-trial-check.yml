@@ -1,0 +1,59 @@
+name: Check Zed compatibility GPUI candidate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+      - name: Checkout pinned siblings
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Check candidate GPUI closure on macOS
+        run: python3 scripts/release/zed_gpui_trial_check.py macos
+      - name: Upload macOS candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: zed-gpui-trial-macos
+          path: |
+            checkout-sources.log
+            zed-gpui-trial-macos/
+          if-no-files-found: warn
+
+  linux:
+    runs-on: x86:linux:host
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+      - name: Checkout pinned siblings
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Check candidate GPUI closure on Linux
+        run: python3 scripts/release/zed_gpui_trial_check.py linux
+      - name: Upload Linux candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: zed-gpui-trial-linux
+          path: |
+            checkout-sources.log
+            zed-gpui-trial-linux/
+          if-no-files-found: warn
