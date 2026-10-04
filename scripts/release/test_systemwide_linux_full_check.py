@@ -18,6 +18,7 @@ from scripts.release.librespot_candidate_check import enable_subreaper
 
 class SystemwideLinuxGateTests(unittest.TestCase):
     def test_stopped_runner_does_not_launch_a_command(self) -> None:
+        (gate.ROOT / "target").mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=gate.ROOT / "target") as directory:
             output = Path(directory)
             with patch.object(gate, "STOP", True), patch.object(gate.subprocess, "Popen") as popen:
@@ -28,6 +29,7 @@ class SystemwideLinuxGateTests(unittest.TestCase):
 
     def test_signal_stops_and_reaps_owned_process(self) -> None:
         enable_subreaper()
+        (gate.ROOT / "target").mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=gate.ROOT / "target") as directory:
             output = Path(directory)
             report: dict[str, object] = {"results": []}
