@@ -1,4 +1,4 @@
-SOTF release plan and evidence status — 2026-10-04 (revision 2)
+SOTF release plan and evidence status — 2026-10-04 (revision 3)
 
 Required outcome
 - Integrate all intended local commits and edits from the nine sibling workspaces and the independent AutoEQ GUI-demo workspace. Preserve active branches, indexes, conflicts, and private/runtime files. Account for and push reviewed work to GitHub and Gitea.
@@ -17,7 +17,7 @@ Execution and adoption rules
 - Windows is deferred by the user until their native runner is available tomorrow. Keep it pending; do not waive Windows gates or request another runner decision now.
 
 Latest authoritative evidence
-- Read-only remote inspection confirms root main on GitHub and Gitea remains9e8a0bac95d5f0045df85feedf9ab6268b63b3ad. Later candidates below remain separate.
+- Source-bearing main baseline is9e8a0bac95d5f0045df85feedf9ab6268b63b3ad; documentary successorad5e4a1a0f2ce39267af1d0a5155cde75b6d1185 is published on both remotes. Source candidates below remain separate.
 1. Compilation
    - #742 passed all ten locked all-feature/all-target checks on Linux and macOS for the previously merged source. It does not qualify later compiler, DSP, or dependency candidates.
    - #756 and #760 each passed eight of ten workspaces on both platforms. SOTF and DAW failed. Parent #760 artifact review verified exact source/lock before-after equality (apart from capture timestamps), ten successful cleanups, and zero survivors on each platform.
@@ -37,6 +37,19 @@ Latest authoritative evidence
    - Coherent #761 repeats the same Rubato/convolution checks with current capture. Its Mac Rubato/convolution steps passed; factory/engine steps exposed additional DAW test type errors now included in the reviewed51-path repair. Retain the original fractional oracle and peak thresholds. Repeat blocked integration checks on the repaired coherent candidate.
    - #758 Linux passed toolkit all-feature compilation, line-wrapper, scene ABI, and headless geometry. Rendered UI failed compiling the earlier SOTF sample-rate comparison. Mac stopped at a parser temp-path alias error. Approved successor #764 canonicalizes both paths, retains unique current-build/target-containment guards, and uses corrected SOTF source. Seven rendered scenarios, screenshots, Linux accessibility actions/focus, and native Mac Metal evidence remain required on the combined candidate.
    - Earlier #680/#724 evidence is historical scope: rendered scenarios and twelve-channel disposable PCM respectively. It does not prove the new combined UI or physical product routing.
+
+Latest terminal follow-up evidence
+- #768 root91d84cd86c51918a4d11160ed973468596ae6a99 passed all ten --locked --all-targets --all-features --keep-going checks on both Linux and macOS. Parent independently verified command exits, zero process survivors, and exact source/ten-lock equality except capture timestamps. DAW5f90f295844cf4551899407b5582d347cf349c6a and SOTF96bfa53ed2ad2b2743c7335cb5f8b37be0f2ce25 contain the reviewed final typed caller and reset test repairs. This proves compilation, not full release QA.
+- #764 passed focused toolkit checks and all seven rendered UI scenarios on both OSes, with zero failed/skipped scenarios. Parent audited exact named line-wrapper/scene ABI/headless tests, source/lock guards and cleanup; inspected representative macOS rack/EQ screenshots. Full combined UI/native-dialog acceptance remains open.
+- #762 passed both OSes for offline Librespot/metadata qualification; its tests cover PCM/decoder, provider/root construction and mocked contracts. Real network trust/account/audio behavior is outside that evidence.
+- #765 passed three pure CoreAudio buffer ownership tests plus fork all-target compilation on macOS. #766 four lock deltas were audited and published; six other locks stayed unchanged. The 132 aggregate duplicate groups, 466 per-lock findings and 22 retained vendors remain unresolved.
+- Reviewed composition7a3686393b6ef41cb0b605c3e63f5573a0014604 combines repaired compiler sources, Rubato67ce221, uniform CoreAudio source/locks, and test-only input diagnostics. #771 is the new all-ten consumer compile gate; no main/vendor adoption is inferred before its results and remaining behavioral proof.
+- #769 built and verified actual arm64 PSM Mach-O assembly objects for watchOS and visionOS. CoreAudio watchOS failed E0425 because its buffer-frame binding excluded watchOS; visionOS CoreAudio was not reached. Approved narrow fork repair adds the watchOS binding and pure empty-buffer growth test. Qualification is pending; no physical device acceptance was performed.
+- #770 reset/inference tests pass on both OSes. Linux full ONNX library has147 passing, zero failed, and three explicitly ignored rejected experiments; macOS has146 passing, one failed, and the same three ignored. Strict gate remains red. The named AUD132 unchanged golden passes Linux and fails macOS at N2 HR-off. Parent raw-vector comparison finds82 differing input sample bit patterns out of8192 and59 differing output bit patterns out of9218; this is evidence for a same-input diagnostic, not permission to change the golden. Original pre-edit source archive provenance remains missing.
+- Three ignored test-only AUD130/AUD132 rejected experiments are documented manual diagnostics, retain failing assertions, and must never count as passes. Any inventory classification must require the exact three identities, zero unexpected ignores, and positive unignored regression inventories.
+- Plotly/WebDriver manifest forks are published immutable candidates; reviewed QA v4 checks protocol, TLS trust/rejection and actual private320x240 PNG export on Linux/macOS. Consumer pins and locks remain unchanged until qualification and delta review.
+- GPUI async-tar Tokio/async-compat candidate v2 preserves extraction/staging/digest policy, with independent gzip/bzip and escape fixtures. Publication/resolution and exact positive tests remain pending; graph reduction must be proved with no new duplicate families.
+- The existing full Linux systemwide lane requires a narrow supervisor/test-name repair before dispatch: retain just check plus just qa, remove elapsed cancellation, add strict owned cleanup/heartbeats, and require the current IPC test identity. No full-QA scope is waived.
 
 Remaining implementation order
 1. Qualify the repaired compiler snapshot with locked all-feature/all-target checks in all ten scopes on Linux and macOS. Repair actual terminal diagnostics; do not replace failed tests with skips. Preserve local paths and authored work in every successor.
