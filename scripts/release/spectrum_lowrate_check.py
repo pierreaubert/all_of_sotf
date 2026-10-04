@@ -10,6 +10,8 @@ import re
 import signal
 import subprocess
 import sys
+import time
+import ctypes
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -28,35 +30,84 @@ def snapshot() -> dict:
     return source_state(ROOT, list(workspace_map()), "linux")
 
 
-def stop_group(child: subprocess.Popen) -> bool:
+def enable_subreaper() -> None:
+    # Cargo may exit before a compiler process. Adopt and reap only descendants
+    # of this runner so a zombie cannot make its owned process group look live.
+    if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "PR_SET_CHILD_SUBREAPER failed")
+
+
+def group_members(pgid: int) -> list[dict]:
+    process = subprocess.run(["ps", "-eo", "pid=,ppid=,pgid=,stat="],
+                             text=True, capture_output=True, check=True, timeout=3)
+    members = []
+    for line in process.stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 4 and int(fields[2]) == pgid:
+            members.append({"pid": int(fields[0]), "ppid": int(fields[1]),
+                            "pgid": pgid, "state": fields[3]})
+    return members
+
+
+def reap_children() -> None:
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid == 0:
+            return
+
+
+def stop_group(child: subprocess.Popen) -> tuple[bool, list[dict], list[str]]:
+    inspection_errors: list[str] = []
+
+    def inspect() -> list[dict] | None:
+        try:
+            return group_members(child.pid)
+        except Exception as error:
+            inspection_errors.append(f"owned group inspection failed: {error}")
+            return None
+
     for signum in (signal.SIGTERM, signal.SIGKILL):
+        members = inspect()
+        if members == [] and not inspection_errors:
+            return True, [], []
         try:
             os.killpg(child.pid, signum)
         except ProcessLookupError:
-            child.wait(timeout=1)
-            return True
-        try:
-            child.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            continue
-        try:
-            os.killpg(child.pid, 0)
-        except ProcessLookupError:
-            return True
-    return False
+            pass
+        except OSError as error:
+            inspection_errors.append(f"owned group signal failed: {error}")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                reap_children()
+            except OSError as error:
+                inspection_errors.append(f"owned child reap failed: {error}")
+            members = inspect()
+            if members == [] and not inspection_errors:
+                return True, [], []
+            time.sleep(0.1)
+    try:
+        reap_children()
+    except OSError as error:
+        inspection_errors.append(f"owned child reap failed: {error}")
+    members = inspect()
+    return members == [] and not inspection_errors, members or [], inspection_errors
 
 
-def run_host(command: list[str], log: Path) -> tuple[int, bool]:
+def run_host(command: list[str], log: Path) -> tuple[int, bool, list[dict], list[str]]:
     with log.open("w", encoding="utf-8") as stream:
         child = subprocess.Popen(command, cwd=ROOT / "sotf-daw", stdout=stream,
                                  stderr=subprocess.STDOUT, start_new_session=True)
         try:
             code = child.wait(timeout=1200)
-            return code, stop_group(child)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt):
-            if not stop_group(child):
-                raise RuntimeError("sotf-host test process group did not stop")
-            raise
+        except subprocess.TimeoutExpired:
+            code = 124
+        finally:
+            cleanup_ok, survivors, inspection_errors = stop_group(child)
+        return code, cleanup_ok, survivors, inspection_errors
 
 
 def main() -> int:
@@ -83,23 +134,25 @@ def main() -> int:
     results: dict = {}
     errors: list[str] = []
     try:
+        enable_subreaper()
         errors.extend(source_issues(before, before, require_clean=True))
         if errors:
             raise RuntimeError("pinned source checkout is dirty")
         host_command = ["cargo", "test", "--locked", "-p", "sotf-host", "--lib",
                         "analyzer_spectrum::tests::", "--", "--show-output", "--test-threads=1"]
         host_log = evidence / "logs" / "sotf-host-analyzer.log"
-        try:
-            host_exit, host_cleanup = run_host(host_command, host_log)
-        except subprocess.TimeoutExpired:
-            host_exit = 124
-            host_cleanup = True
+        host_exit, host_cleanup, host_survivors, host_inspection_errors = run_host(
+            host_command, host_log
+        )
+        if host_exit == 124:
             errors.append("sotf-host analyzer tests timed out")
         output = host_log.read_text(encoding="utf-8", errors="replace")
         passed = set(re.findall(r"^test ([^\n ]+) \.\.\. ok$", output, flags=re.MULTILINE))
         named = {test for test in HOST_TESTS if any(item.endswith("::" + test) for item in passed)}
         results["host"] = {"command": host_command, "exit_code": host_exit,
                            "cleanup_ok": host_cleanup,
+                           "owned_group_survivors": host_survivors,
+                           "cleanup_inspection_errors": host_inspection_errors,
                            "named_passed": sorted(named), "positive_count": len(passed),
                            "log": str(host_log.relative_to(ROOT))}
         if host_exit or not host_cleanup or named != HOST_TESTS or not passed:
