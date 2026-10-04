@@ -25,11 +25,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from workspaces import workspace_names
 
 from checkout_sources import read_manifest
+from qa import demo_metadata_issues
 
 ORDER = (
     "math-audio", "gpui-toolkit", "sofa-reader", "symphonia-add-ons",
     "autoeq", "sotf-daw", "sotf-capture", "sotf", "sotf-systemwide",
 )
+AUTOEQ_DEMO = Path("crates/autoeq-gpui-examples")
 
 # Resolve the Vello/GPUI GPU stack to one pinned Zed fork. Cargo's normal
 # metadata refresh can retain the older crates.io lock entries after patches
@@ -83,20 +85,33 @@ class ResolutionInterrupted(KeyboardInterrupt):
         self.result = result
 
 
-def stop_process_group(process: subprocess.Popen) -> None:
-    """Stop Cargo and its descendants before preserving partial evidence."""
+def process_group_alive(pid: int) -> bool:
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        os.killpg(pid, 0)
     except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
+        return False
+    return True
+
+
+def stop_process_group(process: subprocess.Popen) -> bool:
+    """Reap the leader and stop any remaining Cargo descendants within ten seconds."""
+    for kind in (signal.SIGTERM, signal.SIGKILL):
+        process.poll()
+        if not process_group_alive(process.pid):
+            return True
         try:
-            os.killpg(process.pid, signal.SIGKILL)
+            os.killpg(process.pid, kind)
         except ProcessLookupError:
-            pass
-        process.wait()
+            process.poll()
+            return True
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            process.poll()
+            if not process_group_alive(process.pid):
+                return True
+            time.sleep(0.1)
+    process.poll()
+    return not process_group_alive(process.pid)
 
 
 def interrupted(_signum, _frame):
@@ -189,6 +204,65 @@ def resolve_one(name: str, revision: str, root: Path, output: Path) -> dict:
             except OSError as error:
                 stderr.write(str(error) + "\n")
                 result["exit_code"] = 127
+    if name == "autoeq" and not update_failure and result.get("exit_code") == 0 and not was_interrupted:
+        nested = workspace / AUTOEQ_DEMO
+        nested_lock = nested / "Cargo.lock"
+        nested_result = {
+            "workspace": "autoeq-gpui-examples",
+            "lock_before_sha256": digest(nested_lock),
+            "metadata_file": "metadata/autoeq-gpui-examples.json",
+            "log_file": "logs/autoeq-gpui-examples.log",
+        }
+        result["nested_workspace"] = nested_result
+        nested_lock_dir = output / "locks" / "autoeq-gpui-examples"
+        nested_lock_dir.mkdir(parents=True, exist_ok=True)
+        if nested_lock.is_file():
+            shutil.copy2(nested_lock, nested_lock_dir / "Cargo.lock.before")
+        if not (nested / "Cargo.toml").is_file() or not nested_lock.is_file():
+            nested_result["error"] = "nested demo manifest or Cargo.lock missing"
+            nested_result["exit_code"] = 1
+        else:
+            print("[autoeq-gpui-examples] resolving nested workspace", flush=True)
+            nested_metadata = output / nested_result["metadata_file"]
+            nested_log = output / nested_result["log_file"]
+            with nested_metadata.open("w", encoding="utf-8") as stdout, nested_log.open("w", encoding="utf-8") as stderr:
+                try:
+                    process = subprocess.Popen(
+                        ["cargo", "metadata", "--format-version", "1", "--all-features"],
+                        cwd=nested, stdout=stdout, stderr=stderr, start_new_session=True,
+                    )
+                    try:
+                        nested_result["exit_code"] = process.wait(timeout=900)
+                    except subprocess.TimeoutExpired:
+                        nested_result["exit_code"] = 124
+                        nested_result["error"] = "nested cargo metadata timed out after 900 seconds"
+                    except KeyboardInterrupt:
+                        nested_result["exit_code"] = process.returncode or 130
+                        was_interrupted = True
+                    finally:
+                        if not stop_process_group(process):
+                            nested_result["exit_code"] = 1
+                            nested_result["error"] = "nested cargo process group survived SIGKILL"
+                except OSError as error:
+                    stderr.write(str(error) + "\n")
+                    nested_result["exit_code"] = 127
+            if nested_result["exit_code"] == 0:
+                try:
+                    json.loads(nested_metadata.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as error:
+                    nested_result["error"] = f"invalid nested cargo metadata: {error}"
+                    nested_result["exit_code"] = 1
+                else:
+                    inventory_issues = demo_metadata_issues(nested_metadata)
+                    if inventory_issues:
+                        nested_result["error"] = "; ".join(inventory_issues)
+                        nested_result["exit_code"] = 1
+        nested_result["lock_after_sha256"] = digest(nested_lock)
+        if nested_lock.is_file():
+            shutil.copy2(nested_lock, nested_lock_dir / "Cargo.lock")
+        nested_result["status"] = "RESOLVED" if nested_result["exit_code"] == 0 else "FAIL"
+        if nested_result["status"] != "RESOLVED":
+            result["exit_code"] = nested_result["exit_code"]
     result["duration_seconds"] = round(time.monotonic() - start, 3)
     if metadata.is_file():
         result["metadata_file"] = str(metadata.relative_to(output))
@@ -210,7 +284,8 @@ def resolve_one(name: str, revision: str, root: Path, output: Path) -> dict:
         result["error"] = "cargo metadata failed; inspect log and partial lockfile"
     elif git(workspace, "rev-parse", "HEAD") != revision:
         result["error"] = "source revision changed during resolution"
-    elif set(result["changed_paths"]) - {"Cargo.lock"}:
+    elif set(result["changed_paths"]) - ({"Cargo.lock", str(AUTOEQ_DEMO / "Cargo.lock")}
+                                         if name == "autoeq" else {"Cargo.lock"}):
         result["error"] = "resolution modified source files beyond Cargo.lock"
     else:
         try:

@@ -67,16 +67,19 @@ def test_interruption_stops_cargo_and_preserves_partial_lock(tmp_path: Path) -> 
         return -15
 
     process.wait = wait
+    process.poll = lambda: process.returncode
     with patch.object(resolve_sources, "git", return_value="a" * 40):
         with patch.object(resolve_sources, "changed_paths", side_effect=[[], ["Cargo.lock"]]):
             with patch.object(resolve_sources.subprocess, "Popen", return_value=process):
                 with patch.object(resolve_sources.os, "killpg") as killpg:
-                    try:
-                        resolve_sources.resolve_one("sotf", "a" * 40, root, output)
-                    except resolve_sources.ResolutionInterrupted as error:
-                        result = error.result
-                    else:
-                        raise AssertionError("interrupted resolution must raise")
+                    killpg.side_effect = lambda *_: setattr(process, "returncode", -15)
+                    with patch.object(resolve_sources, "process_group_alive", side_effect=[True, False]):
+                        try:
+                            resolve_sources.resolve_one("sotf", "a" * 40, root, output)
+                        except resolve_sources.ResolutionInterrupted as error:
+                            result = error.result
+                        else:
+                            raise AssertionError("interrupted resolution must raise")
     killpg.assert_called_once_with(1234, resolve_sources.signal.SIGTERM)
     assert result["status"] == "INTERRUPTED"
     assert result["exit_code"] == -15
@@ -132,28 +135,92 @@ name = "wgpu"
 version = "29.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 ''')
+    nested = child / "crates" / "autoeq-gpui-examples"
+    nested.mkdir(parents=True)
+    (nested / "Cargo.toml").write_text("[package]\nname='autoeq-gpui-examples'\nversion='0.1.0'\n")
+    (nested / "Cargo.lock").write_text("old nested lock\n")
     commands = []
 
     def fake_cargo(command, *, cwd, stdout, stderr, start_new_session):
-        commands.append(command)
-        assert cwd == child and start_new_session
+        commands.append((cwd, command))
+        assert cwd in (child, nested) and start_new_session
         if command[1] == "update":
             (child / "Cargo.lock").write_text("version = 3\n")
         else:
-            stdout.write(json.dumps({"packages": []}))
-        return SimpleNamespace(wait=lambda: 0)
+            metadata = {"packages": []}
+            if cwd == nested:
+                (nested / "Cargo.lock").write_text("new nested lock\n")
+                metadata = {"packages": [{"name": "autoeq-gpui-examples", "targets": [
+                    {"name": "d3rs-spinorama", "kind": ["bin"]},
+                    {"name": "px-spinorama", "kind": ["bin"]},
+                ]}]}
+            stdout.write(json.dumps(metadata))
+        return SimpleNamespace(pid=1234, poll=lambda: 0, wait=lambda timeout=None: 0)
 
     with patch.object(resolve_sources, "git", return_value="a" * 40):
         with patch.object(resolve_sources, "changed_paths", side_effect=[[], ["Cargo.lock"]]):
             with patch.object(resolve_sources.subprocess, "Popen", side_effect=fake_cargo):
-                result = resolve_sources.resolve_one("autoeq", "a" * 40, root, output)
+                with patch.object(resolve_sources, "process_group_alive", return_value=False):
+                    result = resolve_sources.resolve_one("autoeq", "a" * 40, root, output)
     assert result["status"] == "RESOLVED"
-    assert [command[1] for command in commands] == ["update", "metadata"]
+    assert [(cwd, command[1]) for cwd, command in commands] == [
+        (child, "update"), (child, "metadata"), (nested, "metadata")
+    ]
     assert result["targeted_updates"][0]["status"] == "PASS"
     assert result["targeted_updates"][1]["status"] == "SKIPPED"
     assert result["targeted_updates"][0]["argv"] == [
         "cargo", "update", "-p", "wgpu@29.0.4", "--precise", "29.0.3",
     ]
+    assert result["nested_workspace"]["status"] == "RESOLVED"
+    assert result["nested_workspace"]["lock_before_sha256"] != result["nested_workspace"]["lock_after_sha256"]
+    assert (output / "locks/autoeq-gpui-examples/Cargo.lock").read_text() == "new nested lock\n"
+
+
+def test_missing_nested_demo_lock_fails_autoeq_resolution(tmp_path: Path) -> None:
+    root, output = workspace(tmp_path)
+    (root / "sotf").rename(root / "autoeq")
+
+    def fake_cargo(_command, *, cwd, stdout, stderr, start_new_session):
+        assert cwd == root / "autoeq" and start_new_session
+        stdout.write(json.dumps({"packages": []}))
+        return SimpleNamespace(wait=lambda: 0)
+
+    with patch.object(resolve_sources, "git", return_value="a" * 40):
+        with patch.object(resolve_sources, "changed_paths", side_effect=[[], []]):
+            with patch.object(resolve_sources.subprocess, "Popen", side_effect=fake_cargo):
+                result = resolve_sources.resolve_one("autoeq", "a" * 40, root, output)
+    assert result["status"] == "FAIL"
+    assert result["nested_workspace"]["status"] == "FAIL"
+    assert "missing" in result["nested_workspace"]["error"]
+
+
+def test_nested_demo_resolution_timeout_fails_and_cleans_group(tmp_path: Path) -> None:
+    root, output = workspace(tmp_path)
+    (root / "sotf").rename(root / "autoeq")
+    nested = root / "autoeq" / "crates" / "autoeq-gpui-examples"
+    nested.mkdir(parents=True)
+    (nested / "Cargo.toml").write_text("[package]\nname='autoeq-gpui-examples'\nversion='0.1.0'\n")
+    (nested / "Cargo.lock").write_text("old nested lock\n")
+
+    def fake_cargo(command, *, cwd, stdout, stderr, start_new_session):
+        assert start_new_session
+        if cwd == nested:
+            def wait(timeout=None):
+                assert timeout == 900
+                raise resolve_sources.subprocess.TimeoutExpired(command, timeout)
+            return SimpleNamespace(pid=1234, returncode=None, wait=wait)
+        stdout.write(json.dumps({"packages": []}))
+        return SimpleNamespace(wait=lambda: 0)
+
+    with patch.object(resolve_sources, "git", return_value="a" * 40):
+        with patch.object(resolve_sources, "changed_paths", side_effect=[[], []]):
+            with patch.object(resolve_sources.subprocess, "Popen", side_effect=fake_cargo):
+                with patch.object(resolve_sources, "stop_process_group", return_value=True) as stopped:
+                    result = resolve_sources.resolve_one("autoeq", "a" * 40, root, output)
+    stopped.assert_called_once()
+    assert result["status"] == "FAIL"
+    assert result["nested_workspace"]["exit_code"] == 124
+    assert "timed out" in result["nested_workspace"]["error"]
 
 
 def test_failed_targeted_update_preserves_lock_and_skips_metadata(tmp_path: Path) -> None:

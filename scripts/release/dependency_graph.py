@@ -173,8 +173,12 @@ def audit_manifests(root: Path, names: list[str]) -> tuple[list[dict], list[dict
 
 def audit_lockfiles(root: Path, names: list[str]) -> list[dict]:
     findings = []
-    for workspace in names:
-        path = root / workspace / "Cargo.lock"
+    aggregate = defaultdict(list)
+    lockfiles = [(name, root / name / "Cargo.lock") for name in names]
+    if "autoeq" in names:
+        lockfiles.append(("autoeq-gpui-examples", root / "autoeq" / "crates" /
+                          "autoeq-gpui-examples" / "Cargo.lock"))
+    for workspace, path in lockfiles:
         if not path.is_file():
             findings.append(finding("missing_lockfile", "error", workspace=workspace, lockfile=str(path)))
             continue
@@ -182,6 +186,11 @@ def audit_lockfiles(root: Path, names: list[str]) -> list[dict]:
         by_name = defaultdict(list)
         for package in packages:
             by_name[package["name"]].append(package)
+            aggregate[package["name"]].append({
+                "workspace": workspace, "lockfile": str(path),
+                "version": package["version"],
+                "source": package.get("source", "path/local"),
+            })
         for name, entries in sorted(by_name.items()):
             versions = sorted({entry["version"] for entry in entries})
             if len(versions) > 1:
@@ -197,6 +206,19 @@ def audit_lockfiles(root: Path, names: list[str]) -> list[dict]:
                                             lockfile=str(path), package=name, version=version,
                                             sources=sorted(sources),
                                             scope="lockfile union of targets, features, and dev dependencies"))
+    for name, locations in sorted(aggregate.items()):
+        versions = sorted({item["version"] for item in locations})
+        if len(versions) > 1:
+            findings.append(finding("aggregate_multiple_versions", "error", package=name,
+                                    versions=versions, locations=locations,
+                                    scope="all nine root and nested lockfile unions"))
+        for version in versions:
+            matching = [item for item in locations if item["version"] == version]
+            sources = sorted({item["source"] for item in matching})
+            if len(sources) > 1:
+                findings.append(finding("aggregate_mixed_sources", "error", package=name,
+                                        version=version, sources=sources, locations=matching,
+                                        scope="all nine root and nested lockfile unions"))
     return findings
 
 
@@ -206,7 +228,7 @@ def audit(root: Path, names: list[str] | None = None) -> dict:
         raise ValueError(f"inventory/layer mismatch: {sorted(set(names) ^ set(LAYERS))}")
     manifest_findings, vendors = audit_manifests(root, names)
     findings = manifest_findings + audit_lockfiles(root, names)
-    return {"schema_version": 1, "scope": "static manifests and per-workspace lockfile unions",
+    return {"schema_version": 1, "scope": "static manifests, per-workspace and aggregate lockfile unions",
             "workspaces": names, "layers": LAYERS, "findings": findings, "vendors": vendors,
             "summary": {"errors": sum(item["severity"] == "error" for item in findings),
                         "reports": sum(item["severity"] == "report" for item in findings)}}

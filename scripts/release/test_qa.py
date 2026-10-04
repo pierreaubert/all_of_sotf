@@ -1,6 +1,7 @@
 """Regression coverage for aggregate gates that must never report false passes."""
 
 from pathlib import Path
+import json
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -73,6 +74,55 @@ def test_sibling_change_fails_aggregate_source_guard():
     after = {"sotf": before["sotf"],
              "sotf-daw": {"revision": "b", "dirty": False, "lock_sha256": "3"}}
     assert qa.source_issues(before, after, True) == ["sotf-daw: Cargo.lock changed"]
+
+
+def test_nested_autoeq_lock_is_required_and_guarded(tmp_path, monkeypatch):
+    workspace = tmp_path / "autoeq"
+    nested = workspace / "crates" / "autoeq-gpui-examples"
+    nested.mkdir(parents=True)
+    (workspace / "Cargo.toml").write_text("[workspace]\n")
+    (workspace / "Cargo.lock").write_text("root lock")
+    (nested / "Cargo.lock").write_text("nested lock")
+    monkeypatch.setattr(qa, "snapshot", lambda *args: {"revision": "abc", "dirty": False})
+    before = qa.source_state(tmp_path, ["autoeq"], "linux")
+    assert qa.source_issues(before, before, True) == []
+    (nested / "Cargo.lock").write_text("changed nested lock")
+    assert qa.source_issues(before, qa.source_state(tmp_path, ["autoeq"], "linux"), True) == [
+        "autoeq: nested GPUI examples Cargo.lock changed"
+    ]
+    (nested / "Cargo.lock").unlink()
+    assert qa.source_issues(qa.source_state(tmp_path, ["autoeq"], "linux"),
+                            qa.source_state(tmp_path, ["autoeq"], "linux"), True) == [
+        "autoeq: nested GPUI examples Cargo.lock missing"
+    ]
+
+
+def test_nested_demo_and_iamf_commands_are_required():
+    demo = "crates/autoeq-gpui-examples/Cargo.toml"
+    metadata = ("cargo", "metadata", "--locked", "--format-version", "1",
+                "--all-features", "--manifest-path", demo)
+    check = ("cargo", "check", "--locked", "--all-targets", "--all-features",
+             "--manifest-path", demo)
+    assert metadata in qa.commands_for("autoeq", "metadata", "linux")
+    assert check in qa.commands_for("autoeq", "check", "macos")
+    assert check in qa.commands_for("autoeq", "qa", "linux")
+    iamf = ("cargo", "test", "--locked", "--all-features", "-p",
+            "symphonia-iamf-core", "-p", "symphonia-format-iamf")
+    assert iamf in qa.commands_for("symphonia-add-ons", "tests", "macos")
+    assert iamf in qa.commands_for("symphonia-add-ons", "qa", "linux")
+
+
+def test_nested_demo_metadata_requires_both_real_binary_targets(tmp_path):
+    log = tmp_path / "demo.log"
+    metadata = {"packages": [{"name": "autoeq-gpui-examples", "targets": [
+        {"name": "d3rs-spinorama", "kind": ["bin"]},
+        {"name": "px-spinorama", "kind": ["bin"]},
+    ]}]}
+    log.write_text("warning: cached index\n" + json.dumps(metadata) + "\n")
+    assert qa.demo_metadata_issues(log) == []
+    metadata["packages"][0]["targets"].pop()
+    log.write_text(json.dumps(metadata) + "\n")
+    assert qa.demo_metadata_issues(log) == ["nested AutoEQ demo binary missing: px-spinorama"]
 
 
 def test_sotf_qa_covers_application_and_integration_suites():

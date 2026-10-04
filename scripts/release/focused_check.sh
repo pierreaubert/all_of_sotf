@@ -56,8 +56,34 @@ require_passed_test() {
 
 run_check math-crossover-reset math-audio cargo test -p math-iir-fir --lib --locked
 require_passed_test math-crossover-reset aupreset_payload_preserves_band_values
+for crossover in lr4_crossover lr8_crossover; do
+    require_passed_test math-crossover-reset \
+        "$crossover::reset_tests::exact_reset_replays_fresh_filters_and_preserves_storage"
+    require_passed_test math-crossover-reset \
+        "$crossover::reset_tests::multiband_reset_replays_fresh_filters_and_preserves_storage"
+done
 run_check autoeq-report-base64 autoeq cargo test -p autoeq-report-wasm --lib --locked b64_round_trip
 require_passed_test autoeq-report-base64 b64_round_trip
+run_check autoeq-demo-metadata autoeq cargo metadata --locked --format-version 1 --all-features \
+    --manifest-path crates/autoeq-gpui-examples/Cargo.toml
+python3 - "$output/autoeq-demo-metadata.log" <<'PY'
+from pathlib import Path
+import sys
+
+from scripts.release.qa import demo_metadata_issues
+
+issues = demo_metadata_issues(Path(sys.argv[1]))
+for issue in issues:
+    print(f"AUTOEQ DEMO TARGET GUARD: {issue}")
+raise SystemExit(bool(issues))
+PY
+if [ "$?" -ne 0 ]; then failed=1; fi
+run_check autoeq-demo-check autoeq cargo check --locked --all-targets --all-features \
+    --manifest-path crates/autoeq-gpui-examples/Cargo.toml
+run_check iamf-core-and-format symphonia-add-ons cargo test --locked --all-features \
+    -p symphonia-iamf-core -p symphonia-format-iamf
+require_passed_test iamf-core-and-format parse_obu_header_with_trimming
+require_passed_test iamf-core-and-format rejects_trun_bad_version
 run_check toolkit-util-tests gpui-toolkit cargo test --locked -p gpui-toolkit-util -p gpui-toolkit-gpui-util
 run_check daw-band-split-tests sotf-daw cargo test -p sotf-plugin-band-split --lib --locked
 run_check daw-band-split-check sotf-daw cargo check -p sotf-plugin-band-split --all-targets --locked

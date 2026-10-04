@@ -32,12 +32,22 @@ def commands_for(name: str, phase: str, platform_name: str | None = None) -> lis
     """Return commands required of this workspace on the selected platform."""
     platform_name = platform_name or host_platform()
     metadata = ("cargo", "metadata", "--locked", "--format-version", "1")
+    demo_manifest = "crates/autoeq-gpui-examples/Cargo.toml"
+    demo_metadata = (*metadata, "--all-features", "--manifest-path", demo_manifest)
+    demo_check = ("cargo", "check", "--locked", "--all-targets", "--all-features",
+                  "--manifest-path", demo_manifest)
     if phase == "metadata":
-        return [metadata]
+        return [metadata, demo_metadata] if name == "autoeq" else [metadata]
     if phase == "check":
-        return [metadata, ("cargo", "check", "--workspace", "--all-targets", "--locked")]
+        commands = [metadata, ("cargo", "check", "--workspace", "--all-targets", "--locked")]
+        return [*commands, demo_metadata, demo_check] if name == "autoeq" else commands
     workspace = workspace_map()[name]
     commands = [metadata, *gate_commands(workspace, qa=phase == "qa")]
+    if name == "autoeq":
+        commands.extend((demo_metadata, demo_check))
+    if name == "symphonia-add-ons":
+        commands.append(("cargo", "test", "--locked", "--all-features",
+                         "-p", "symphonia-iamf-core", "-p", "symphonia-format-iamf"))
     if phase == "qa":
         extras = {
             "sotf": [("just", recipe) for recipe in (
@@ -72,6 +82,11 @@ def source_state(root: Path, names: list[str], platform_name: str) -> dict:
         source = snapshot(workspace, platform_name)
         lock = workspace / "Cargo.lock"
         source["lock_sha256"] = hashlib.sha256(lock.read_bytes()).hexdigest() if lock.is_file() else None
+        if name == "autoeq":
+            nested = workspace / "crates" / "autoeq-gpui-examples" / "Cargo.lock"
+            source["nested_lock_sha256"] = (
+                hashlib.sha256(nested.read_bytes()).hexdigest() if nested.is_file() else None
+            )
         states[name] = source
     return states
 
@@ -92,6 +107,10 @@ def source_issues(before: dict, after: dict, require_clean: bool) -> list[str]:
             issues.append(f"{name}: source tree is dirty after validation")
         elif start["lock_sha256"] != end.get("lock_sha256"):
             issues.append(f"{name}: Cargo.lock changed")
+        elif name == "autoeq" and not start.get("nested_lock_sha256"):
+            issues.append("autoeq: nested GPUI examples Cargo.lock missing")
+        elif name == "autoeq" and start["nested_lock_sha256"] != end.get("nested_lock_sha256"):
+            issues.append("autoeq: nested GPUI examples Cargo.lock changed")
     return issues
 
 
@@ -99,6 +118,29 @@ def write_report(path: Path, report: dict) -> None:
     pending = path.with_suffix(".pending")
     pending.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     pending.replace(path)
+
+
+def demo_metadata_issues(log: Path) -> list[str]:
+    """Require both shipped Spinorama binaries in Cargo's actual target inventory."""
+    metadata = None
+    for line in reversed(log.read_text(encoding="utf-8").splitlines()):
+        try:
+            candidate = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, dict) and isinstance(candidate.get("packages"), list):
+            metadata = candidate
+            break
+    if metadata is None:
+        return ["nested AutoEQ demo cargo metadata is missing or invalid"]
+    packages = [package for package in metadata["packages"]
+                if package.get("name") == "autoeq-gpui-examples"]
+    if len(packages) != 1:
+        return ["nested AutoEQ demo package is absent or ambiguous"]
+    binaries = {target.get("name") for target in packages[0].get("targets", [])
+                if "bin" in target.get("kind", [])}
+    missing = {"d3rs-spinorama", "px-spinorama"} - binaries
+    return [f"nested AutoEQ demo binary missing: {name}" for name in sorted(missing)]
 
 
 def print_failure_tail(log: Path, lines: int = 80) -> None:
@@ -194,6 +236,11 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
             print_failure_tail(log)
             result["error"] = "command failed; later commands were not run"
             return result
+        if name == "autoeq" and command[:2] == ("cargo", "metadata") and "--manifest-path" in command:
+            inventory_issues = demo_metadata_issues(log)
+            if inventory_issues:
+                result["error"] = "; ".join(inventory_issues)
+                return result
         if sandbox_coverage_skipped(name, phase, platform_name, command, log):
             print_failure_tail(log)
             result["error"] = "required Linux sandbox coverage skipped; later commands were not run"

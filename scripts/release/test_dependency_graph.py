@@ -13,6 +13,9 @@ def fixture_root(tmp_path: Path):
         workspace.mkdir()
         (workspace / "Cargo.toml").write_text(f'[package]\nname = "{name}"\nversion = "0.1.0"\n')
         (workspace / "Cargo.lock").write_text('version = 3\n[[package]]\nname = "serde"\nversion = "1.0.0"\nsource = "registry+crates.io"\n')
+    nested = tmp_path / "autoeq" / "crates" / "autoeq-gpui-examples"
+    nested.mkdir(parents=True)
+    (nested / "Cargo.lock").write_text('version = 3\n[[package]]\nname = "serde"\nversion = "1.0.0"\nsource = "registry+crates.io"\n')
     return tmp_path
 
 
@@ -63,6 +66,50 @@ def test_same_version_mixed_sources_and_multiple_versions_are_distinct_errors(tm
     )
     assert "mixed_sources" in codes(graph.audit(root))
     assert "multiple_versions" in codes(graph.audit(root))
+
+
+def test_nested_autoeq_demo_lock_is_required_and_audited(tmp_path):
+    root = fixture_root(tmp_path)
+    lock = root / "autoeq" / "crates" / "autoeq-gpui-examples" / "Cargo.lock"
+    lock.write_text(
+        'version = 3\n'
+        '[[package]]\nname = "wgpu"\nversion = "29.0.3"\n'
+        '[[package]]\nname = "wgpu"\nversion = "29.0.4"\n'
+    )
+    findings = graph.audit(root)["findings"]
+    assert any(item["code"] == "multiple_versions" and
+               item["workspace"] == "autoeq-gpui-examples" for item in findings)
+    lock.unlink()
+    assert any(item["code"] == "missing_lockfile" and
+               item["workspace"] == "autoeq-gpui-examples" for item in graph.audit(root)["findings"])
+
+
+def test_aggregate_lock_union_finds_cross_workspace_versions_and_sources(tmp_path):
+    root = fixture_root(tmp_path)
+    (root / "sotf" / "Cargo.lock").write_text(
+        'version = 3\n[[package]]\nname = "example"\nversion = "1.0.0"\n'
+        'source = "registry+crates.io"\n'
+    )
+    nested = root / "autoeq" / "crates" / "autoeq-gpui-examples" / "Cargo.lock"
+    nested.write_text(
+        'version = 3\n[[package]]\nname = "example"\nversion = "1.0.0"\n'
+        'source = "git+https://example.invalid/example#abc"\n'
+        '[[package]]\nname = "another"\nversion = "2.0.0"\n'
+    )
+    (root / "math-audio" / "Cargo.lock").write_text(
+        'version = 3\n[[package]]\nname = "example"\nversion = "2.0.0"\n'
+        'source = "registry+crates.io"\n'
+    )
+    findings = graph.audit(root)["findings"]
+    mixed = [item for item in findings if item["code"] == "aggregate_mixed_sources"
+             and item["package"] == "example"]
+    versions = [item for item in findings if item["code"] == "aggregate_multiple_versions"
+                and item["package"] == "example"]
+    assert len(mixed) == len(versions) == 1
+    assert versions[0]["versions"] == ["1.0.0", "2.0.0"]
+    assert {item["workspace"] for item in mixed[0]["locations"]} == {
+        "sotf", "autoeq-gpui-examples"
+    }
 
 
 def test_duplicate_vendor_across_workspaces_fails(tmp_path):
