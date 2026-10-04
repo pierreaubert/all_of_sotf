@@ -14,7 +14,7 @@ case "$platform" in macos|linux) ;; *) echo "unsupported platform: $platform" >&
 for rev in "$fantoccini_rev" "$plotly_rev" "$downloader_rev"; do
     [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || { echo "fork revision must be a full SHA: $rev" >&2; exit 2; }
 done
-readonly reviewed_fantoccini_rev=e12d66dc87df7dd010d913a7e7de9ff0afdd770b
+readonly reviewed_fantoccini_rev=590017cc99258f69c7c0081de19e9488c200565f
 readonly reviewed_plotly_rev=67230e5d154d2bb6110a0242db074b59cf2fdc89
 readonly reviewed_downloader_rev=34b86a7fa685efb9888ab216d1fcd6b9febe24e1
 [ "$fantoccini_rev" = "$reviewed_fantoccini_rev" ] &&
@@ -365,21 +365,30 @@ clone_guard() {
     [ "$(git -C "$repo" rev-parse HEAD^)" = "$base" ] || {
         echo "$name is not a direct child of reviewed official/qualified base" >&2; exit 1;
     }
+    if [ "$name" = fantoccini ]; then
+        [ "$(git -C "$repo" rev-parse HEAD^^)" = ed1d6944e100cf36f8a00c03c7a9a5f4424e71f3 ] || {
+            echo 'Fantoccini official grandparent differs' >&2; exit 1;
+        }
+    fi
     git -C "$repo" status --porcelain >"$output/$name-status.txt"
     [ ! -s "$output/$name-status.txt" ] || { echo "$name checkout is dirty" >&2; exit 1; }
     case "$name" in
-        fantoccini) expected=Cargo.toml ;;
+        fantoccini) expected=$'Cargo.toml\nsrc/wd.rs' ;;
         plotly) expected=plotly_static/Cargo.toml ;;
         downloader) expected=webdriver-downloader/Cargo.toml ;;
     esac
-    changed=$(git -C "$repo" diff --name-only "$base" "$rev")
+    local provenance_base=$base
+    if [ "$name" = fantoccini ]; then
+        provenance_base=ed1d6944e100cf36f8a00c03c7a9a5f4424e71f3
+    fi
+    changed=$(git -C "$repo" diff --name-only "$provenance_base" "$rev")
     [ "$changed" = "$expected" ] || {
         echo "$name changed paths differ from the reviewed single manifest: $changed" >&2
         exit 1
     }
-    git -C "$repo" diff --binary "$base" "$rev" >"$output/$name.patch"
+    git -C "$repo" diff --binary "$provenance_base" "$rev" >"$output/$name.patch"
     case "$name" in
-        fantoccini) reviewed_sha=51662615c0bdfa45a829257c0b6e4d69310840c51d168becb278c95cfea235e4 ;;
+        fantoccini) reviewed_sha=e304999cf565582d6683b1c3fd66c08ef4e32cdcc7ce789828558801657c1c83 ;;
         plotly) reviewed_sha=11786074b33724e836a554358379bf50d55cc10e20eb9460ed9f72d78ba5c079 ;;
         downloader) reviewed_sha=87cf1cda21e811e20ad086c65c48aa91b1a0f467005c87ee031bb722da4d916e ;;
     esac
@@ -397,7 +406,7 @@ PY
     }
     printf '%s\n' "$rev" >"$output/$name-revision.txt"
 }
-clone_guard fantoccini "$fantoccini_url" "$fantoccini_branch" "$fantoccini_rev" "$fantoccini_base" "$fantoccini"
+clone_guard fantoccini "$fantoccini_url" "$fantoccini_branch" "$fantoccini_rev" e12d66dc87df7dd010d913a7e7de9ff0afdd770b "$fantoccini"
 clone_guard plotly "$plotly_url" "$plotly_branch" "$plotly_rev" "$plotly_base" "$plotly"
 clone_guard downloader "$downloader_url" "$downloader_branch" "$downloader_rev" "$downloader_base" "$downloader"
 
@@ -461,6 +470,24 @@ run_check() {
 }
 run_check fantoccini-native-check "$work/fantoccini-source" cargo check --locked --all-targets --no-default-features --features native-tls
 run_check fantoccini-rustls-check "$work/fantoccini-source" cargo check --locked --all-targets --no-default-features --features rustls-tls
+run_check fantoccini-native-timeout-tests "$work/fantoccini-source" cargo test --locked --lib wd::timeout_parameter_tests --no-default-features --features native-tls
+run_check fantoccini-rustls-timeout-tests "$work/fantoccini-source" cargo test --locked --lib wd::timeout_parameter_tests --no-default-features --features rustls-tls
+python3 - "$output/fantoccini-native-timeout-tests.log" "$output/fantoccini-rustls-timeout-tests.log" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+names = {
+    "explicit_script_null_remains_distinct_from_omission",
+    "omitted_timeouts_remain_omitted",
+    "zero_and_positive_timeouts_keep_their_values",
+}
+for path in map(Path, sys.argv[1:]):
+    output = path.read_text(errors="replace")
+    passed = set(re.findall(r"^test wd::timeout_parameter_tests::(\w+) \.\.\. ok$", output, re.M))
+    assert passed == names, f"{path}: timeout tests differ: {passed}"
+    assert re.search(r"test result: ok\. 3 passed; 0 failed; 0 ignored;", output), path
+PY
 run_check plotly-chromedriver-check "$work/plotly-source" cargo check --locked -p plotly_static --all-targets --features chromedriver
 run_check plotly-geckodriver-check "$work/plotly-source" cargo check --locked -p plotly_static --all-targets --features geckodriver
 run_check downloader-native-tests "$work/downloader-source" cargo test --locked -p webdriver-downloader --lib traits:: --no-default-features --features native-tls
