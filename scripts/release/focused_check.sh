@@ -119,6 +119,10 @@ else
 fi
 run_check sotf-musicbrainz-loopback-tests sotf cargo test --locked -p sotf-player --lib metadata::musicbrainz::tests:: -- --ignored --nocapture
 run_check sotf-eq-chart-tests sotf cargo test -p sotf-gpui --test eq_chart_tests --locked
+run_check sotf-room-eq-config-integration sotf cargo test -p sotf-gpui --test room_eq_config_tests --locked
+require_passed_test sotf-room-eq-config-integration test_channel_ordering_2_0
+run_check sotf-room-eq-plot-integration sotf cargo test -p sotf-gpui --test room_eq_plot_tests --locked
+require_passed_test sotf-room-eq-plot-integration room_eq_report_uses_dsp_output_curves_without_recomputing
 
 python3 - "$output" <<'PY'
 import json
