@@ -52,7 +52,7 @@ fn mock_webdriver(mode: &'static str) -> (String, thread::JoinHandle<Vec<String>
     listener.set_nonblocking(true).expect("set nonblocking mock listener");
     let url = format!("http://{}", listener.local_addr().expect("mock address"));
     let handle = thread::spawn(move || {
-        let expected = if mode == "positive" { 4 } else { 1 };
+        let expected = if mode == "positive" { 5 } else { 1 };
         let deadline = Instant::now() + Duration::from_secs(15);
         let mut requests = Vec::new();
         while requests.len() < expected {
@@ -133,14 +133,19 @@ async fn run_protocol_rustls() {
 }
 
 fn assert_requests(mode: &str, requests: Vec<String>) {
-    assert!(requests[0].starts_with("POST /session "));
+    let lines: Vec<_> = requests
+        .iter()
+        .map(|request| request.lines().next().expect("request line"))
+        .collect();
+    assert!(requests[0].starts_with("POST /session "), "{lines:?}");
     assert!(requests[0].contains("capabilities"));
     if mode == "positive" {
-        assert_eq!(requests.len(), 4);
-        assert!(requests[1].starts_with("GET /session/private-session/url "));
-        assert!(requests[2].starts_with("POST /session/private-session/url "));
-        assert!(requests[2].contains("http://example.test/next"));
-        assert!(requests[3].starts_with("DELETE /session/private-session "));
+        assert_eq!(requests.len(), 5, "{lines:?}");
+        assert!(requests[1].starts_with("GET /session/private-session/url "), "{lines:?}");
+        assert!(requests[2].starts_with("GET /session/private-session/url "), "{lines:?}");
+        assert!(requests[3].starts_with("POST /session/private-session/url "), "{lines:?}");
+        assert!(requests[3].contains("http://example.test/next"), "{lines:?}");
+        assert!(requests[4].starts_with("DELETE /session/private-session "), "{lines:?}");
     } else {
         assert_eq!(requests.len(), 1);
     }
