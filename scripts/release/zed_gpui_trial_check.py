@@ -15,6 +15,7 @@ import tomllib
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.buildbot.ci_matrix import workspace_map
 from scripts.release.checkout_sources import read_manifest
+from scripts.release.dependency_graph import audit
 from scripts.release.qa import ROOT, source_issues, source_state
 from scripts.release.spectrum_lowrate_check import enable_subreaper, stop_group
 
@@ -44,11 +45,13 @@ def run(name: str, command: list[str], out: Path) -> dict:
             cleanup_ok, survivors, inspection_errors = stop_group(child)
     text = log.read_text(errors="replace")
     tests = re.findall(r"^test (\S+) \.\.\. ok$", text, re.MULTILINE)
+    python_tests = re.search(r"^Ran ([1-9][0-9]*) tests? in", text, re.MULTILINE)
+    positive_tests = len(tests) + (int(python_tests.group(1)) if python_tests else 0)
     return {"name": name, "argv": command, "exit_code": code,
             "interrupted": interrupted,
             "cleanup_ok": cleanup_ok, "owned_group_survivors": survivors,
             "cleanup_inspection_errors": inspection_errors,
-            "positive_tests": len(tests), "log": str(log.relative_to(ROOT))}
+            "positive_tests": positive_tests, "log": str(log.relative_to(ROOT))}
 
 
 def main() -> int:
@@ -84,6 +87,19 @@ def main() -> int:
             selected = [item for item in packages if item["name"] == package]
             if len(selected) != 1 or selected[0].get("source") != fork:
                 errors.append(f"{package}: candidate fork identity absent or ambiguous")
+        for package in ("collections", "gpui_util", "media"):
+            if (ROOT / "gpui-toolkit/crates/3rdparties" / package).exists():
+                errors.append(f"{package}: migrated vendor directory still present")
+        graph = audit(ROOT)
+        (evidence / "dependency-graph.json").write_text(json.dumps(graph, indent=2))
+        duplicates = sum(item["code"] == "aggregate_multiple_versions" for item in graph["findings"])
+        prohibited = {"missing_manifest", "unresolved_workspace_dependency", "external_path",
+                      "upward_dependency", "repository_cycle", "duplicate_vendor",
+                      "mixed_sources", "aggregate_mixed_sources"}
+        unsafe = [item for item in graph["findings"] if item["code"] in prohibited]
+        if duplicates != 239 or len(graph["vendors"]) != 22 or unsafe:
+            errors.append(f"candidate graph changed: duplicates={duplicates}, "
+                          f"vendors={len(graph['vendors'])}, unsafe={len(unsafe)}")
         if errors:
             raise RuntimeError("source guard failed before GPUI qualification")
         commands = [
@@ -96,6 +112,8 @@ def main() -> int:
             ("toolkit-util", ["cargo", "test", "--locked", "-p", "gpui-toolkit-util"], True),
             ("vendored-inventory", ["cargo", "test", "--locked", "-p", "gpui-release-gates",
                                     "vendored_patches"], True),
+            ("importer-tests", ["env", "PYTHONPATH=scripts", "python3", "-m", "unittest",
+                                "discover", "-s", "scripts/tests", "-p", "test_import_gpui_upstream.py", "-v"], True),
         ]
         if platform == "macos":
             # `media` is selected by a macOS-only GPUI dependency and defines
