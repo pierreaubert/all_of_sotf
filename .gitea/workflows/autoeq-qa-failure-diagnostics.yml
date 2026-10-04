@@ -6,7 +6,6 @@ on:
 jobs:
   linux:
     runs-on: x86:linux:host
-    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:

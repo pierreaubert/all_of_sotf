@@ -18,11 +18,17 @@ from qa import ROOT, source_issues, source_state
 
 FLOOR_TEST = "delayed_convergence_uses_existing_generation_budget_and_reports_actual_evaluations"
 REGISTERED_DE_TEST = "registered_de_route_returns_report_for_the_final_selected_vector"
+MH_BUDGET_TESTS = (
+    "registered_rga_stage_budget_refusal_keeps_run_control_priority",
+    "parallel_mh_objective_reservations_never_score_denied_attempts",
+)
 COMMANDS = (
     ("math-de-floor", ("cargo", "test", "--locked", "-p", "math-optimisation",
                        "--lib", FLOOR_TEST)),
     ("registered-de", ("cargo", "test", "--locked", "-p", "autoeq-optim",
                        "--lib", REGISTERED_DE_TEST)),
+    *(("mh-budget-" + name, ("cargo", "test", "--locked", "-p", "autoeq-optim",
+                               "--lib", name)) for name in MH_BUDGET_TESTS),
     ("spacing-projection", ("cargo", "test", "--locked", "-p", "autoeq-optim",
                             "--lib", "spacing_projection::tests")),
     ("de-completion", ("cargo", "test", "--locked", "-p", "autoeq-cli",
@@ -179,6 +185,13 @@ def run(output: Path) -> int:
                 entry["floor_test_passed"] = len(passed)
                 if len(passed) != 1:
                     entry["error"] = "expected exactly one passing DE floor regression"
+            if name.startswith("mh-budget-"):
+                selected = name.removeprefix("mh-budget-")
+                exact = re.findall(r"^test \S*" + re.escape(selected) + r" \.\.\. ok$",
+                                   output_text, re.MULTILINE)
+                entry["named_budget_passed"] = len(exact)
+                if len(exact) != 1:
+                    entry["error"] = "expected exactly one passing objective-budget regression"
             if name in ("registered-de", "spacing-projection", "de-completion", "autoeq-optim-lib"):
                 passed = re.findall(r"^test \S+ \.\.\. ok$", output_text, re.MULTILINE)
                 entry["passed_tests"] = len(passed)
