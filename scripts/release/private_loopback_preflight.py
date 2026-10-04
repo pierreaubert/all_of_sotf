@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from typing import Callable
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
@@ -24,6 +25,23 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from scripts.release.qa import ROOT, source_issues, source_state, workspace_map
 from scripts.release.checkout_sources import read_manifest
+
+# ALSA Pulse names channels 8..11 aux0..aux3. In the private 7.1.4 fixture,
+# those four indices represent top-front-left/right and top-rear-left/right.
+CHANNEL_POSITIONS = (
+    "front-left", "front-right", "front-center", "lfe",
+    "rear-left", "rear-right", "side-left", "side-right",
+    "aux0", "aux1", "aux2", "aux3",
+)
+LOGICAL_714_POSITIONS = (
+    "front-left", "front-right", "front-center", "lfe",
+    "rear-left", "rear-right", "side-left", "side-right",
+    "top-front-left", "top-front-right", "top-rear-left", "top-rear-right",
+)
+
+
+def channel_positions(value: str | None) -> tuple[str, ...]:
+    return tuple(part.strip() for part in value.split(",")) if value else ()
 
 
 def become_subreaper() -> None:
@@ -117,7 +135,8 @@ def stop_group(process: subprocess.Popen[bytes], record: dict) -> bool:
 
 
 def owned_command(argv: list[str], env: dict[str, str], log: Path,
-                  commands: list[dict], active: list[dict]) -> dict:
+                  commands: list[dict], active: list[dict],
+                  on_started: Callable[[subprocess.Popen[bytes]], None] | None = None) -> dict:
     record: dict = {"argv": argv, "exit_code": None, "cleanup_ok": False}
     commands.append(record)
     process: subprocess.Popen[bytes] | None = None
@@ -126,8 +145,11 @@ def owned_command(argv: list[str], env: dict[str, str], log: Path,
             process = subprocess.Popen(
                 argv, env=env, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True
             )
-            active.append({"argv": argv, "pgid": process.pid, "cleanup_ok": None})
+            active_entry = {"argv": argv, "pgid": process.pid, "cleanup_ok": None}
+            active.append(active_entry)
             write_active(log.parent, active)
+            if on_started is not None:
+                on_started(process)
             while process.poll() is None:
                 print(f"private PCM command heartbeat: {argv[0]} pid={process.pid}", flush=True)
                 try:
@@ -144,7 +166,7 @@ def owned_command(argv: list[str], env: dict[str, str], log: Path,
         finally:
             if process is not None:
                 record["cleanup_ok"] = stop_group(process, record)
-                active[-1]["cleanup_ok"] = record["cleanup_ok"]
+                active_entry["cleanup_ok"] = record["cleanup_ok"]
                 write_active(log.parent, active)
     return record
 
@@ -179,7 +201,7 @@ def private_environment(root: Path) -> tuple[dict[str, str], Path, Path]:
 
 
 def tone_and_capture(env: dict[str, str], output: Path,
-                     commands: list[dict], active: list[dict]) -> dict:
+                     commands: list[dict], active: list[dict], server_map: str) -> dict:
     rate, channels = 48_000, 12
     frequencies = [180 + 80 * channel for channel in range(channels)]
     tone = output / "tone.raw"
@@ -189,10 +211,26 @@ def tone_and_capture(env: dict[str, str], output: Path,
                 int(9_000 * math.sin(2 * math.pi * frequency * i / rate))
                 for frequency in frequencies
             ))
-            for i in range(rate)
+            for i in range(rate * 3)
         )
     )
     capture = output / "capture.raw"
+    client_map: str | None = None
+    def record_client_map(playback: subprocess.Popen[bytes]) -> None:
+        nonlocal client_map
+        attempt = 0
+        while playback.poll() is None and client_map is None:
+            attempt += 1
+            log = output / f"pulse-client-map-{attempt}.log"
+            probe = owned_command(["pactl", "list", "sink-inputs"], env, log, commands, active)
+            if probe["exit_code"] != 0 or not probe["cleanup_ok"]:
+                raise RuntimeError("private sink-input channel-map probe failed")
+            for line in log.read_text(errors="replace").splitlines():
+                if line.strip().startswith("Channel Map:"):
+                    client_map = line.split(":", 1)[1].strip()
+                    break
+            if client_map is None:
+                time.sleep(0.05)
     recorder: subprocess.Popen[bytes] | None = None
     record: dict = {"argv": ["arecord", "private default 12ch"], "exit_code": None,
                     "cleanup_ok": False}
@@ -200,7 +238,7 @@ def tone_and_capture(env: dict[str, str], output: Path,
     with (output / "arecord.log").open("wb") as stream:
         try:
             recorder = subprocess.Popen(
-                ["arecord", "-D", "default", "-t", "raw", "-f", "S16_LE", "-c", "12", "-r", "48000", "-d", "3", str(capture)],
+                ["arecord", "-D", "default", "-t", "raw", "-f", "S16_LE", "-c", "12", "-r", "48000", "-d", "4", str(capture)],
                 env=env, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
             )
             active.append({"argv": record["argv"], "pgid": recorder.pid, "cleanup_ok": None})
@@ -209,7 +247,7 @@ def tone_and_capture(env: dict[str, str], output: Path,
             time.sleep(0.35)
             owned_command(
                 ["aplay", "-D", "default", "-t", "raw", "-f", "S16_LE", "-c", "12", "-r", "48000", str(tone)],
-                env, output / "aplay.log", commands, active,
+                env, output / "aplay.log", commands, active, on_started=record_client_map,
             )
             while recorder.poll() is None:
                 print(f"private PCM recorder heartbeat: pid={recorder.pid}", flush=True)
@@ -258,9 +296,17 @@ def tone_and_capture(env: dict[str, str], output: Path,
                               "matched_amplitude": round(matched, 3),
                               "largest_wrong_frequency_amplitude": round(wrong, 3),
                               "pass": matched >= 500 and wrong <= matched * 0.15})
+    server_positions = channel_positions(server_map)
+    client_positions = channel_positions(client_map)
     return {"frames": frame_count, "capture_window_start": start,
+            "server_channel_map": server_map, "client_channel_map": client_map,
+            "expected_private_channel_map": list(CHANNEL_POSITIONS),
+            "logical_714_index_positions": list(LOGICAL_714_POSITIONS),
+            "server_map_matches_expected": server_positions == CHANNEL_POSITIONS,
+            "client_map_matches_expected": client_positions == CHANNEL_POSITIONS,
             "channel_proof": channel_proof,
-            "all_twelve_channels_proved": frame_count >= rate * 2
+            "all_twelve_channels_proved": server_positions == CHANNEL_POSITIONS
+            and client_positions == CHANNEL_POSITIONS and frame_count >= rate * 2
             and all(item["pass"] for item in channel_proof)}
 
 
@@ -326,7 +372,7 @@ def main() -> int:
                 f"load-module module-native-protocol-unix socket={socket} auth-anonymous=1\n"
                 "load-module module-null-sink sink_name=sotf_qa channels=12 rate=48000 "
                 "channel_map=front-left,front-right,front-center,lfe,rear-left,rear-right,"
-                "side-left,side-right,top-front-left,top-front-right,top-rear-left,top-rear-right\n"
+                "side-left,side-right,aux0,aux1,aux2,aux3\n"
                 "set-default-sink sotf_qa\nset-default-source sotf_qa.monitor\n"
             )
             os.chown(startup, user.pw_uid, user.pw_gid)
@@ -362,7 +408,11 @@ def main() -> int:
                 source_text = (output / "pulse-sources.log").read_text()
                 if "sotf_qa" not in sink_text or "12ch" not in sink_text or "sotf_qa.monitor" not in source_text:
                     raise RuntimeError("private 12-channel sink and monitor were not advertised")
-                proof = tone_and_capture(env, output, report["commands"], active)
+                server_maps = [line.split(":", 1)[1].strip() for line in sink_text.splitlines()
+                               if line.strip().startswith("Channel Map:")]
+                if len(server_maps) != 1:
+                    raise RuntimeError("private sink channel map was not uniquely reported")
+                proof = tone_and_capture(env, output, report["commands"], active, server_maps[0])
                 report["pcm_proof"] = proof
                 if any(c["exit_code"] != 0 or not c["cleanup_ok"] for c in report["commands"]) or not proof["all_twelve_channels_proved"]:
                     raise RuntimeError("private twelve-channel PCM loopback failed channel-specific proof")
