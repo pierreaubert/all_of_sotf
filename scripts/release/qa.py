@@ -25,6 +25,22 @@ from version_snapshot import snapshot
 from checkout_sources import read_manifest, root_layout_status
 
 STOP = False
+
+
+def clean_group(process):
+    """Keep the supervisor API available without importing qa during setup."""
+    from librespot_candidate_check import clean_group as clean_owned_group
+
+    return clean_owned_group(process)
+
+
+def enable_subreaper():
+    """Install the same owned-descendant reaper after module initialization."""
+    from librespot_candidate_check import enable_subreaper as enable_owned_reaper
+
+    return enable_owned_reaper()
+
+
 REJECTED_UPMIXER_EXPERIMENTS = {
     "above_512_hr_delay_baseline_and_source_aligned_candidate_tone":
         "AUD132 rejected candidate: removing the HR input delay preserves the N=2048 tone residual above the fixed 1% ceiling",
@@ -336,10 +352,6 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
                 code = 127
             finally:
                 if process is not None:
-                    # This helper imports qa for source guards. Import it only
-                    # after this module has finished initialization.
-                    from librespot_candidate_check import clean_group
-
                     entry["owned_group_cleanup"] = clean_group(process)
         entry.update({"exit_code": code,
                       "duration_seconds": round(time.monotonic() - started, 3)})
@@ -405,8 +417,6 @@ def interrupted(_signum, _frame):
 def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
-    from librespot_candidate_check import enable_subreaper
-
     enable_subreaper()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phase", nargs="?", choices=("metadata", "check", "tests", "qa"))

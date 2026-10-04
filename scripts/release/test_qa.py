@@ -16,10 +16,12 @@ import qa
 def test_qa_and_supervisor_import_without_cycle() -> None:
     root = Path(__file__).resolve().parents[2]
     probes = (
-        "import scripts.release.qa; import scripts.release.librespot_candidate_check",
+        "import scripts.release.qa as qa; import scripts.release.librespot_candidate_check; "
+        "assert callable(qa.clean_group) and callable(qa.enable_subreaper)",
         "import scripts.release.librespot_candidate_check; import scripts.release.qa",
         "import sys; sys.path.insert(0, 'scripts/release'); "
-        "import qa; import librespot_candidate_check",
+        "import qa; import librespot_candidate_check; "
+        "assert callable(qa.clean_group) and callable(qa.enable_subreaper)",
     )
     for probe in probes:
         result = subprocess.run(
@@ -325,14 +327,16 @@ def test_successful_sandbox_test_with_kernel_skip_fails_qa(tmp_path, monkeypatch
     monkeypatch.setattr(qa, "commands_for", lambda *_: [sandbox])
 
     real_popen = qa.subprocess.Popen
-    def fake_popen(_command, cwd, stdout, stderr, start_new_session):
-        assert _command == sandbox
-        assert cwd == workspace
+    def fake_popen(command, *args, **kwargs):
+        if command != sandbox:
+            # The cleanup helper also uses subprocess. Leave its process
+            # inspection and reaping calls intact.
+            return real_popen(command, *args, **kwargs)
+        assert kwargs["cwd"] == workspace
         program = ("print('test sandbox::owned_worker_starts ... ok'); "
                    "print('test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out;'); "
                    "print('SKIP: kernel sandbox unavailable (backend LinuxLandlock)')")
-        return real_popen((sys.executable, "-c", program), cwd=cwd,
-                          stdout=stdout, stderr=stderr, start_new_session=start_new_session)
+        return real_popen((sys.executable, "-c", program), *args, **kwargs)
 
     monkeypatch.setattr(qa.subprocess, "Popen", fake_popen)
     result = qa.run_workspace("sotf-daw", "qa", tmp_path, output, False, "linux")
