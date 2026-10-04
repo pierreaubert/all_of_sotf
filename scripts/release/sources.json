@@ -4,13 +4,13 @@
   "owner": "pierre",
   "sources": {
     "autoeq": {
-      "revision": "6bf9f1ac1ee77e5618120987ac6a7013118bac24"
+      "revision": "c544c743f35316543d853a90a3f2b857c587f844"
     },
     "gpui-toolkit": {
       "revision": "0c0696a7321da081e881e6fbb4e1b3692ee91f98"
     },
     "math-audio": {
-      "revision": "88aedf7c973a02c03853f2ccf98b515a2d461880"
+      "revision": "669adec69ce29faf4005d7be28fbc1b2dd307e39"
     },
     "sofa-reader": {
       "revision": "15e78a7af254914787c6e66c617373d77d72e313"
