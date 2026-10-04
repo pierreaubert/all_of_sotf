@@ -2,7 +2,11 @@
 
 from pathlib import Path
 import json
+import os
+import signal
 import sys
+import threading
+import time
 
 sys.path.insert(0, str(Path(__file__).parent))
 import qa
@@ -18,6 +22,151 @@ def fake_workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(qa, "workspace_map", lambda: {"sotf": object()})
     monkeypatch.setattr(qa, "snapshot", lambda *args: {"revision": "abc123", "dirty": False})
     return workspace, output
+
+
+def test_test_inventory_rejects_zero_selected_and_ignored(tmp_path):
+    log = tmp_path / "tests.log"
+    log.write_text("test result: ok. 0 passed; 0 failed; 0 ignored; 12 filtered out;\n")
+    assert qa.test_inventory(log)["passed"] == 0
+    log.write_text("test result: ok. 1 passed; 0 failed; 1 ignored; 0 filtered out;\n")
+    assert qa.test_inventory(log) == {"passed": 1, "failed": 0, "ignored": 1,
+                                      "summaries": 1, "named_passes": [], "ignored_named": {}}
+
+
+def test_test_inventory_requires_named_passes_and_rejects_mixed_failures(tmp_path):
+    log = tmp_path / "tests.log"
+    log.write_text("test module::good ... ok\n"
+                   "test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 filtered out;\n")
+    inventory = qa.test_inventory(log)
+    assert inventory["named_passes"] == ["module::good"]
+    assert inventory["failed"] == 1
+    log.write_text("    \x1b[32mPASS\x1b[0m [   0.009s] (   1/7970) driver-common tests::good\n"
+                   "     Summary [   3.374s] 590/7970 tests run: 588 passed, 2 failed, 71 skipped\n")
+    inventory = qa.test_inventory(log)
+    assert inventory["named_passes"] == ["driver-common tests::good"]
+    assert (inventory["passed"], inventory["failed"], inventory["ignored"]) == (588, 2, 71)
+
+
+def test_test_inventory_keeps_compile_only_commands_exempt():
+    assert not qa.requires_test_inventory(("cargo", "check", "--locked"))
+    assert qa.requires_test_inventory(("cargo", "test", "--locked"))
+    assert qa.requires_test_inventory(("just", "ntest"))
+
+
+def test_rejected_upmixer_experiments_require_exact_inventory(tmp_path):
+    log = tmp_path / "upmixer.log"
+    lines = [f"test module::{name} ... ignored, {reason}"
+             for name, reason in qa.REJECTED_UPMIXER_EXPERIMENTS.items()]
+    log.write_text("\n".join(lines) + "\n"
+                   "test result: ok. 147 passed; 0 failed; 3 ignored; 0 filtered out;\n")
+    command = ("cargo", "test", "--locked", "-p", "sotf-plugin-upmixer",
+               "--features", "onnx", "--lib")
+    inventory = qa.test_inventory(log)
+    inventory["named_passes"] = [f"module::other_{index}" for index in range(145)] + [
+        "module::aud132_live_source_tags_align_above_512_exact_and_noninteger_tones",
+        "module::aud132_preserves_small_fft_and_512_pre_edit_full_output_controls",
+    ]
+    assert qa.approved_ignored_inventory("sotf-daw", command, inventory)
+    inventory["ignored_named"]["rejected_static_delay_candidate_does_not_align_fixed_gain_tone_phase"] = "different reason"
+    assert not qa.approved_ignored_inventory("sotf-daw", command, inventory)
+    assert not qa.approved_ignored_inventory("sotf", command, qa.test_inventory(log))
+
+
+def test_gpui_release_validator_requires_artifacts_from_current_revision(tmp_path):
+    command = ("just", "qa-release-evidence")
+    assert qa.validator_issues("gpui-toolkit", command, tmp_path, "reviewed")
+    manifest = tmp_path / "target/qa/release-evidence.json"
+    manifest.parent.mkdir(parents=True)
+    artifact = tmp_path / "target/qa/metal-render.png"
+    artifact.write_bytes(b"known captured pixels")
+    document = {"schema_version": 1,
+                "report_type": "gpui-toolkit-release-evidence-manifest",
+                "artifacts": [{"path": "target/qa/metal-render.png",
+                               "size_bytes": artifact.stat().st_size,
+                               "sha256": qa.hashlib.sha256(artifact.read_bytes()).hexdigest()}],
+                "source": {"revision": "stale", "dirty": False}}
+    manifest.write_text(json.dumps(document))
+    assert qa.validator_issues("gpui-toolkit", command, tmp_path, "reviewed")
+    document["source"]["revision"] = "reviewed"
+    manifest.write_text(json.dumps(document))
+    assert qa.validator_issues("gpui-toolkit", command, tmp_path, "reviewed") == []
+    artifact.write_bytes(b"tampered captured pixels")
+    assert qa.validator_issues("gpui-toolkit", command, tmp_path, "reviewed")
+
+
+def test_interruption_before_spawn_does_not_launch_command(tmp_path, monkeypatch):
+    _, output = fake_workspace(tmp_path, monkeypatch)
+    monkeypatch.setattr(qa, "commands_for", lambda *_: [(sys.executable, "-c", "pass")])
+    monkeypatch.setattr(qa, "STOP", True)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(qa.subprocess, "Popen", lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("child launched after STOP")))
+        try:
+            qa.run_workspace("sotf", "check", tmp_path, output, False)
+        except qa.GateInterrupted as error:
+            assert error.result["commands"] == []
+        else:
+            raise AssertionError("STOP did not interrupt the workspace")
+
+
+def test_owned_descendant_is_cleaned_after_leader_exits(tmp_path, monkeypatch):
+    _, output = fake_workspace(tmp_path, monkeypatch)
+    qa.enable_subreaper()
+    ready = tmp_path / "descendant-ready"
+    program = ("import pathlib, subprocess, sys, time; "
+               "ready=pathlib.Path(sys.argv[1]); "
+               "subprocess.Popen([sys.executable, '-c', "
+               "'import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text(\"ready\"); time.sleep(30)', "
+               "str(ready)]); "
+               "deadline=time.monotonic()+5; "
+               "exec('while not ready.exists() and time.monotonic()<deadline: time.sleep(0.01)')")
+    monkeypatch.setattr(qa, "commands_for", lambda *_: [(sys.executable, "-c", program, str(ready))])
+    result = qa.run_workspace("sotf", "check", tmp_path, output, False)
+    assert ready.read_text() == "ready"
+    assert result["commands"][0]["owned_group_cleanup"]["ok"] is True
+
+
+def test_sigterm_during_live_owned_command_cleans_group_and_stops_next(tmp_path, monkeypatch):
+    _, output = fake_workspace(tmp_path, monkeypatch)
+    qa.enable_subreaper()
+    ready = tmp_path / "live-ready"
+    descendant = tmp_path / "descendant-ready"
+    program = ("import pathlib,subprocess,sys,time; "
+               "pathlib.Path(sys.argv[1]).write_text('ready'); "
+               "subprocess.Popen([sys.executable,'-c',"
+               "'import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text(\"ready\"); time.sleep(30)',"
+               "sys.argv[2]]); time.sleep(30)")
+    monkeypatch.setattr(qa, "commands_for", lambda *_: [
+        (sys.executable, "-c", program, str(ready), str(descendant)),
+        (sys.executable, "-c", "raise AssertionError('later command launched')"),
+    ])
+    previous_handler = signal.signal(signal.SIGTERM, qa.interrupted)
+    qa.STOP = False
+    cancel = threading.Event()
+
+    def interrupt_when_ready() -> None:
+        deadline = time.monotonic() + 5
+        while (not ready.exists() or not descendant.exists()) and time.monotonic() < deadline and not cancel.is_set():
+            time.sleep(0.01)
+        if not cancel.is_set():
+            os.kill(os.getpid(), signal.SIGTERM)
+
+    sender = threading.Thread(target=interrupt_when_ready)
+    sender.start()
+    try:
+        try:
+            qa.run_workspace("sotf", "check", tmp_path, output, False)
+        except qa.GateInterrupted as error:
+            assert ready.is_file() and descendant.is_file()
+            assert len(error.result["commands"]) == 1
+            assert error.result["commands"][0]["owned_group_cleanup"]["ok"] is True
+        else:
+            raise AssertionError("SIGTERM did not interrupt the live command")
+    finally:
+        cancel.set()
+        sender.join(timeout=6)
+        signal.signal(signal.SIGTERM, previous_handler)
+        qa.STOP = False
 
 
 def test_missing_workspace_is_failure(tmp_path):
@@ -158,17 +307,15 @@ def test_successful_sandbox_test_with_kernel_skip_fails_qa(tmp_path, monkeypatch
     sandbox = qa.commands_for("sotf-daw", "qa", "linux")[-1]
     monkeypatch.setattr(qa, "commands_for", lambda *_: [sandbox])
 
-    class CompletedProcess:
-        returncode = 0
-
-        def wait(self):
-            return 0
-
+    real_popen = qa.subprocess.Popen
     def fake_popen(_command, cwd, stdout, stderr, start_new_session):
+        assert _command == sandbox
         assert cwd == workspace
-        stdout.write("SKIP: kernel sandbox unavailable (backend LinuxLandlock)\n")
-        stdout.flush()
-        return CompletedProcess()
+        program = ("print('test sandbox::owned_worker_starts ... ok'); "
+                   "print('test result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out;'); "
+                   "print('SKIP: kernel sandbox unavailable (backend LinuxLandlock)')")
+        return real_popen((sys.executable, "-c", program), cwd=cwd,
+                          stdout=stdout, stderr=stderr, start_new_session=start_new_session)
 
     monkeypatch.setattr(qa.subprocess, "Popen", fake_popen)
     result = qa.run_workspace("sotf-daw", "qa", tmp_path, output, False, "linux")

@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import time
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "buildbot"))
@@ -22,6 +23,17 @@ sys.path.insert(0, str(ROOT / "scripts" / "release"))
 from ci_matrix import gate_commands, workspace_map
 from version_snapshot import snapshot
 from checkout_sources import read_manifest, root_layout_status
+from librespot_candidate_check import clean_group, enable_subreaper
+
+STOP = False
+REJECTED_UPMIXER_EXPERIMENTS = {
+    "above_512_hr_delay_baseline_and_source_aligned_candidate_tone":
+        "AUD132 rejected candidate: removing the HR input delay preserves the N=2048 tone residual above the fixed 1% ceiling",
+    "rejected_static_delay_candidate_does_not_align_fixed_gain_impulses":
+        "Rejected AUD130 static output-delay candidate; failed impulse evidence is retained in audit/upmixer-hr-timing.md",
+    "rejected_static_delay_candidate_does_not_align_fixed_gain_tone_phase":
+        "Rejected AUD130 static output-delay candidate; failed tone residual evidence is retained in audit/upmixer-hr-timing.md",
+}
 
 
 def host_platform() -> str:
@@ -171,20 +183,102 @@ class GateInterrupted(KeyboardInterrupt):
         self.result = result
 
 
-def stop_process_group(process: subprocess.Popen) -> None:
-    """Stop the gate and any Cargo/just descendants when CI cancels it."""
+def test_inventory(log: Path) -> dict:
+    """Count actually executed tests without treating zero-selection as coverage."""
+    body = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", log.read_text(encoding="utf-8", errors="replace"))
+    cargo = [tuple(map(int, match)) for match in re.findall(
+        r"test result: (?:ok|FAILED)\.\s+(\d+) passed; (\d+) failed; (\d+) ignored;", body,
+    )]
+    nextest = re.findall(r"Summary\s+\[[^\]]+\]\s+\S+ tests? run:\s*([^\n]+)", body)
+    nextest_counts = [
+        {kind: int(match.group(1)) if (match := re.search(rf"\b(\d+) {kind}\b", line)) else 0
+         for kind in ("passed", "failed", "skipped")}
+        for line in nextest
+    ]
+    named = set(re.findall(r"^test\s+(\S+)\s+\.\.\.\s+ok$", body, re.M))
+    named.update(re.findall(
+        r"^\s*PASS\s+\[[^\]]+\]\s+(?:\([^)]*\)\s+)?([^\n]+?)\s*$", body, re.M,
+    ))
+    ignored_named = {name.rsplit("::", 1)[-1]: reason for name, reason in re.findall(
+        r"^test\s+(\S+)\s+\.\.\.\s+ignored,\s+([^\n]+)$", body, re.M,
+    )}
+    return {"passed": sum(row[0] for row in cargo) + sum(row["passed"] for row in nextest_counts),
+            "failed": sum(row[1] for row in cargo) + sum(row["failed"] for row in nextest_counts),
+            "ignored": sum(row[2] for row in cargo) + sum(row["skipped"] for row in nextest_counts),
+            "summaries": len(cargo) + len(nextest_counts), "named_passes": sorted(named),
+            "ignored_named": ignored_named}
+
+
+def requires_test_inventory(command: tuple[str, ...]) -> bool:
+    if command[:2] == ("cargo", "test") or command[:2] == ("cargo", "nextest"):
+        return True
+    return command[:1] == ("just",) and len(command) > 1 and (
+        command[1] in {"qa", "ntest", "test", "all", "qa-release-evidence"}
+        or command[1].startswith(("test-", "qa-"))
+    )
+
+
+def required_test_names(name: str, command: tuple[str, ...]) -> set[str]:
+    if name == "sotf-daw" and command == ("just", "qa-plugins-cross-format"):
+        return {"nondefault_normalized_parameters_match_direct_typed_audio",
+                "test_bridge_set_get_roundtrip_on_plugin"}
+    return set()
+
+
+def approved_ignored_inventory(name: str, command: tuple[str, ...], inventory: dict) -> bool:
+    observed = {item.rsplit("::", 1)[-1] for item in inventory["named_passes"]}
+    aud132_controls = {
+        "aud132_live_source_tags_align_above_512_exact_and_noninteger_tones",
+        "aud132_preserves_small_fft_and_512_pre_edit_full_output_controls",
+    }
+    return (name == "sotf-daw"
+            and command[:7] == ("cargo", "test", "--locked", "-p", "sotf-plugin-upmixer",
+                                "--features", "onnx")
+            and "--lib" in command and len(command) == 8
+            and inventory["passed"] >= 147
+            and len(observed) == inventory["passed"]
+            and aud132_controls <= observed
+            and inventory["ignored"] == len(REJECTED_UPMIXER_EXPERIMENTS)
+            and inventory["ignored_named"] == REJECTED_UPMIXER_EXPERIMENTS)
+
+
+def validator_issues(name: str, command: tuple[str, ...], workspace: Path,
+                     revision: str | None) -> list[str]:
+    if name != "gpui-toolkit" or command != ("just", "qa-release-evidence"):
+        return []
+    manifest = workspace / "target/qa/release-evidence.json"
+    if not manifest.is_file():
+        return ["strict GPUI release evidence manifest missing"]
     try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        process.wait()
+        evidence = json.loads(manifest.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"strict GPUI evidence unreadable: {error}"]
+    if (evidence.get("schema_version") != 1
+            or evidence.get("report_type") != "gpui-toolkit-release-evidence-manifest"
+            or evidence.get("source", {}).get("revision") != revision
+            or evidence.get("source", {}).get("dirty") is not False):
+        return ["strict GPUI manifest schema, clean source, or revision differs"]
+    artifacts = evidence.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        return ["strict GPUI artifact inventory missing"]
+    root = workspace.resolve()
+    seen = set()
+    for row in artifacts:
+        if not isinstance(row, dict) or not isinstance(row.get("path"), str):
+            return ["strict GPUI artifact row malformed"]
+        path = (workspace / row["path"]).resolve()
+        if path in seen or not path.is_relative_to(root) or not path.is_file():
+            return [f"strict GPUI artifact missing, duplicate, or outside workspace: {row['path']}"]
+        seen.add(path)
+        with path.open("rb") as stream:
+            actual_digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        if (path.stat().st_size != row.get("size_bytes")
+                or actual_digest != row.get("sha256")):
+            return [f"strict GPUI artifact size/hash differs: {row['path']}"]
+        binding = row.get("embedded_source")
+        if binding is not None and binding.get("matches_manifest_source") is not True:
+            return [f"strict GPUI artifact source binding differs: {row['path']}"]
+    return []
 
 
 def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean: bool,
@@ -205,6 +299,9 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
         result["error"] = "; ".join(issues)
         return result
     for index, command in enumerate(commands_for(name, phase, platform_name)):
+        if STOP:
+            result["error"] = "interrupted before next command"
+            raise GateInterrupted(result)
         log = output / f"{name}-{index:02d}.log"
         started = time.monotonic()
         print(f"[{name}] {' '.join(command)}", flush=True)
@@ -213,30 +310,69 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
             report["active_command"] = entry
             write_report(report_path, report)
         with log.open("w", encoding="utf-8") as stream:
+            process = None
+            code = 130
             try:
+                if STOP:
+                    entry["status"] = "INTERRUPTED_BEFORE_LAUNCH"
+                    result["commands"].append(entry)
+                    result["error"] = "gate interrupted before command launch"
+                    raise GateInterrupted(result)
                 process = subprocess.Popen(command, cwd=workspace, stdout=stream,
                                            stderr=subprocess.STDOUT, start_new_session=True)
-                try:
-                    code = process.wait()
-                except KeyboardInterrupt:
-                    stop_process_group(process)
-                    entry.update({"status": "INTERRUPTED", "exit_code": process.returncode,
-                                  "duration_seconds": round(time.monotonic() - started, 3)})
-                    result["commands"].append(entry)
-                    result["error"] = "gate interrupted"
-                    raise GateInterrupted(result)
+                entry["owned_pgid"] = process.pid
+                if report is not None and report_path is not None:
+                    write_report(report_path, report)
+                heartbeat = time.monotonic()
+                while not STOP:
+                    try:
+                        code = process.wait(timeout=1)
+                        break
+                    except subprocess.TimeoutExpired:
+                        if time.monotonic() - heartbeat >= 30:
+                            print(f"[{name}] command still running", flush=True)
+                            heartbeat = time.monotonic()
             except OSError as error:
                 stream.write(str(error) + "\n")
                 code = 127
+            finally:
+                if process is not None:
+                    entry["owned_group_cleanup"] = clean_group(process)
         entry.update({"exit_code": code,
                       "duration_seconds": round(time.monotonic() - started, 3)})
         result["commands"].append(entry)
         if report is not None:
             report.pop("active_command", None)
+            if report_path is not None:
+                report["active_workspace_result"] = result
+                write_report(report_path, report)
         print(f"[{name}] exit {code}; log: {log}", flush=True)
+        if STOP:
+            entry["status"] = "INTERRUPTED"
+            result["error"] = "gate interrupted"
+            raise GateInterrupted(result)
+        if not entry.get("owned_group_cleanup", {}).get("ok", code == 127):
+            result["error"] = "owned command group cleanup failed"
+            return result
         if code:
             print_failure_tail(log)
             result["error"] = "command failed; later commands were not run"
+            return result
+        if requires_test_inventory(command):
+            entry["test_inventory"] = test_inventory(log)
+            observed = {item.rsplit("::", 1)[-1] for item in entry["test_inventory"]["named_passes"]}
+            missing = required_test_names(name, command) - observed
+            if (entry["test_inventory"]["passed"] <= 0
+                    or entry["test_inventory"]["failed"]
+                    or (entry["test_inventory"]["ignored"]
+                        and not approved_ignored_inventory(name, command, entry["test_inventory"]))
+                    or not entry["test_inventory"]["named_passes"] or missing):
+                result["error"] = f"test recipe lacks required named passes or has failed/ignored tests: {sorted(missing)}"
+                return result
+        validator_errors = validator_issues(name, command, workspace, before[name].get("revision"))
+        if validator_errors:
+            entry["validator_issues"] = validator_errors
+            result["error"] = "; ".join(validator_errors)
             return result
         if name == "autoeq" and command[:2] == ("cargo", "metadata") and "--manifest-path" in command:
             inventory_issues = demo_metadata_issues(log)
@@ -259,11 +395,14 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
 
 
 def interrupted(_signum, _frame):
-    raise KeyboardInterrupt("SIGTERM")
+    global STOP
+    STOP = True
 
 
 def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
+    enable_subreaper()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phase", nargs="?", choices=("metadata", "check", "tests", "qa"))
     parser.add_argument("--phase", dest="phase_option", choices=("metadata", "check", "tests", "qa"))
@@ -288,6 +427,10 @@ def main(argv: list[str] | None = None) -> int:
               "release_coverage": {"complete": False, "reason": "single-platform phase evidence; release requires separately verified platform and packaging lanes",
                                    "missing_platforms": [item for item in ("macos", "linux", "windows") if item != platform_name],
                                    "packaging": "not_run"}}
+    if phase == "qa" and platform_name == "linux":
+        report["release_coverage"]["physical_audio"] = (
+            "INCOMPLETE: commands run in a disposable container without host audio devices"
+        )
     path = output / "report.json"
     root_before = None
     manifest_before = None
@@ -319,6 +462,7 @@ def main(argv: list[str] | None = None) -> int:
                                        platform_name, report, path)
                 report["workspaces"].append(result)
                 report.pop("active_workspace", None)
+                report.pop("active_workspace_result", None)
                 write_report(path, report)
     except GateInterrupted as error:
         report["workspaces"].append(error.result)
