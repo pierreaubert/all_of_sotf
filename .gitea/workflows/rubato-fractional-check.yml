@@ -1,0 +1,124 @@
+name: Rubato fractional DSP qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CI: 'true'
+      SOTF_GITEA_DISPOSABLE_RUNNER: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Prove owned signal cleanup and full test inventory
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_rubato_fractional_check 2>&1 | tee rubato-supervisor-tests.log
+          grep -q '^Ran 3 tests in ' rubato-supervisor-tests.log
+          grep -q '^OK$' rubato-supervisor-tests.log
+          if grep -Eq '^(FAILED|ERROR|FAIL|OK \(skipped=)' rubato-supervisor-tests.log; then exit 1; fi
+      - name: Run macOS Rubato and fractional DSP QA
+        run: python3 scripts/release/rubato_fractional_check.py macos target/release-rubato-fractional-macos
+      - name: Upload macOS Rubato evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: rubato-fractional-macos
+          path: |
+            checkout-sources.log
+            rubato-supervisor-tests.log
+            target/release-rubato-fractional-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      CI: 'true'
+      SOTF_GITEA_DISPOSABLE_RUNNER: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Prepare disposable Linux DSP build environment
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-rubato-evidence-linux
+          exec > >(tee target/release-rubato-evidence-linux/prerequisite.log) 2>&1
+          uname -a
+          id
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'Linux DSP setup requires the disposable root-owned Gitea container; refusing host package changes'
+            exit 1
+          fi
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang mold cmake ninja-build pkg-config libssl-dev \
+            libasound2-dev libclang-dev libglib2.0-dev
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          rustc --version
+          cargo --version
+          if [ "$(rustc --version | awk '{print $2}')" != '1.99.0' ]; then
+            echo 'Linux Rust toolchain differs from the pinned release QA version'
+            exit 1
+          fi
+          command -v mold
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Prove owned signal cleanup and full test inventory
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_rubato_fractional_check 2>&1 | tee rubato-supervisor-tests.log
+          grep -q '^Ran 3 tests in ' rubato-supervisor-tests.log
+          grep -q '^OK$' rubato-supervisor-tests.log
+          if grep -Eq '^(FAILED|ERROR|FAIL|OK \(skipped=)' rubato-supervisor-tests.log; then exit 1; fi
+      - name: Run Linux Rubato and fractional DSP QA
+        run: |
+          export PATH="$CARGO_HOME/bin:$PATH"
+          python3 scripts/release/rubato_fractional_check.py linux target/release-rubato-fractional-linux
+      - name: Upload Linux Rubato evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: rubato-fractional-linux
+          path: |
+            checkout-sources.log
+            rubato-supervisor-tests.log
+            target/release-rubato-fractional-linux/
+            target/release-rubato-evidence-linux/prerequisite.log
+          if-no-files-found: warn
