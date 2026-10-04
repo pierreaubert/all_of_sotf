@@ -23,7 +23,6 @@ sys.path.insert(0, str(ROOT / "scripts" / "release"))
 from ci_matrix import gate_commands, workspace_map
 from version_snapshot import snapshot
 from checkout_sources import read_manifest, root_layout_status
-from librespot_candidate_check import clean_group, enable_subreaper
 
 STOP = False
 REJECTED_UPMIXER_EXPERIMENTS = {
@@ -337,6 +336,10 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
                 code = 127
             finally:
                 if process is not None:
+                    # This helper imports qa for source guards. Import it only
+                    # after this module has finished initialization.
+                    from librespot_candidate_check import clean_group
+
                     entry["owned_group_cleanup"] = clean_group(process)
         entry.update({"exit_code": code,
                       "duration_seconds": round(time.monotonic() - started, 3)})
@@ -402,6 +405,8 @@ def interrupted(_signum, _frame):
 def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
+    from librespot_candidate_check import enable_subreaper
+
     enable_subreaper()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phase", nargs="?", choices=("metadata", "check", "tests", "qa"))

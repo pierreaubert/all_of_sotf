@@ -4,12 +4,29 @@ from pathlib import Path
 import json
 import os
 import signal
+import subprocess
 import sys
 import threading
 import time
 
 sys.path.insert(0, str(Path(__file__).parent))
 import qa
+
+
+def test_qa_and_supervisor_import_without_cycle() -> None:
+    root = Path(__file__).resolve().parents[2]
+    probes = (
+        "import scripts.release.qa; import scripts.release.librespot_candidate_check",
+        "import scripts.release.librespot_candidate_check; import scripts.release.qa",
+        "import sys; sys.path.insert(0, 'scripts/release'); "
+        "import qa; import librespot_candidate_check",
+    )
+    for probe in probes:
+        result = subprocess.run(
+            [sys.executable, "-c", probe], cwd=root, capture_output=True, text=True,
+            check=False,
+        )
+        assert result.returncode == 0, f"{probe}: {result.stderr}"
 
 
 def fake_workspace(tmp_path, monkeypatch):
