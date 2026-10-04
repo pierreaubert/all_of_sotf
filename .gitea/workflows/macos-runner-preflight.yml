@@ -1,0 +1,24 @@
+name: macOS runner lifecycle preflight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Record scoped macOS runner lifecycle
+        run: python3 scripts/release/macos_runner_preflight.py release-macos-runner-preflight
+      - name: Upload lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-runner-preflight
+          path: release-macos-runner-preflight/
+          if-no-files-found: warn
