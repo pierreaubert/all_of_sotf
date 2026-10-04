@@ -46,6 +46,9 @@ jobs:
             echo 'Rust toolchain differs from pinned release QA version' >&2
             exit 1
           fi
+          command -v rustup
+          rustup component add clippy --toolchain 1.99.0
+          cargo clippy --version
           if ! command -v just >/dev/null 2>&1; then
             cargo install just --version 1.58.0 --locked
           fi
