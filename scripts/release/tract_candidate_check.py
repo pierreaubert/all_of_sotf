@@ -23,6 +23,7 @@ from scripts.release.qa import host_platform, source_issues, source_state
 
 FORK = "https://github.com/pierreaubert/tract.git"
 OFFICIAL_BASE = "d40ce12ae71741008a2a3b4fffcd3d6a6175301d"
+COMPATIBILITY_PARENT = "aee8cf204bef9be6bba0025ef7c20a298613cef7"
 PACKAGES = {f"tract-{name}" for name in ("core", "data", "hir", "linalg", "nnef", "onnx", "onnx-opl")}
 TESTS = {
     "seeded_multinomial_replays_and_only_selects_possible_classes",
@@ -236,8 +237,9 @@ def main() -> int:
                 if not errors:
                     actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=fork, text=True).strip()
                     parent = subprocess.check_output(["git", "rev-parse", "HEAD^"], cwd=fork, text=True).strip()
-                    if actual != rev or parent != OFFICIAL_BASE:
-                        errors.append("fork revision or official base differs")
+                    grandparent = subprocess.check_output(["git", "rev-parse", "HEAD^^"], cwd=fork, text=True).strip()
+                    if actual != rev or parent != COMPATIBILITY_PARENT or grandparent != OFFICIAL_BASE:
+                        errors.append("fork revision or reviewed two-commit ancestry differs")
                     if fork_source_status(fork):
                         errors.append("fork source checkout is dirty before qualification")
                 if not errors:
