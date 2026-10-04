@@ -1,0 +1,113 @@
+name: Librespot compatibility candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          mkdir -p target/release-gitea/librespot-logs
+          python3 scripts/release/checkout_sources.py 2>&1 | tee target/release-gitea/librespot-logs/checkout-sources.log
+      - name: Verify candidate process ownership regressions
+        run: |
+          set -euo pipefail
+          python3 -m venv target/release-gitea/librespot-venv
+          target/release-gitea/librespot-venv/bin/python -m pip install pytest
+          target/release-gitea/librespot-venv/bin/python -m pytest -v scripts/release/test_librespot_candidate_check.py 2>&1 | tee target/release-gitea/librespot-logs/supervisor-tests.log
+          for test in test_resolved_playback_features_refuse_rodio test_root_guard_only_permits_manifest_named_siblings test_registration_failure_cleans_started_group test_inspection_error_still_signals_owned_group_and_fails; do
+            grep -E "::${test} PASSED" target/release-gitea/librespot-logs/supervisor-tests.log
+          done
+      - name: Run offline Librespot and Spotify candidate checks
+        run: python3 scripts/release/librespot_candidate_check.py target/release-gitea/release-librespot-candidate-macos
+      - name: Upload macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: librespot-candidate-macos
+          path: |
+            target/release-gitea/librespot-logs/
+            target/release-gitea/release-librespot-candidate-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Rust and native dependencies
+        run: |
+          set -euo pipefail
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'Librespot candidate requires a disposable root-owned Gitea container' >&2
+            exit 1
+          fi
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential pkg-config libssl-dev libasound2-dev \
+            libdbus-1-dev libudev-dev python3-venv
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          rustup target add wasm32-unknown-unknown --toolchain 1.99.0
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          mkdir -p target/release-gitea/librespot-logs
+          python3 scripts/release/checkout_sources.py 2>&1 | tee target/release-gitea/librespot-logs/checkout-sources.log
+      - name: Verify candidate process ownership regressions
+        run: |
+          set -euo pipefail
+          python3 -m venv target/release-gitea/librespot-venv
+          target/release-gitea/librespot-venv/bin/python -m pip install pytest
+          target/release-gitea/librespot-venv/bin/python -m pytest -v scripts/release/test_librespot_candidate_check.py 2>&1 | tee target/release-gitea/librespot-logs/supervisor-tests.log
+          for test in test_resolved_playback_features_refuse_rodio test_root_guard_only_permits_manifest_named_siblings test_registration_failure_cleans_started_group test_inspection_error_still_signals_owned_group_and_fails test_leader_exit_does_not_leave_owned_descendant; do
+            grep -E "::${test} PASSED" target/release-gitea/librespot-logs/supervisor-tests.log
+          done
+      - name: Run offline Librespot and Spotify candidate checks
+        run: python3 scripts/release/librespot_candidate_check.py target/release-gitea/release-librespot-candidate-linux
+      - name: Upload Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: librespot-candidate-linux
+          path: |
+            target/release-gitea/librespot-logs/
+            target/release-gitea/release-librespot-candidate-linux/
+          if-no-files-found: warn
