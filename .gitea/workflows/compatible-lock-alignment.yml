@@ -6,7 +6,6 @@ on:
 jobs:
   propose:
     runs-on: x86:linux:host
-    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,6 +21,12 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify identity and normalized-edge guards
+        run: |
+          set -o pipefail
+          python3 -m unittest discover -s scripts/release -p test_align_compatible_locks.py -v 2>&1 | tee compatible-alignment-tests.log
+          grep -Eq 'Ran [1-9][0-9]* tests?' compatible-alignment-tests.log
+          grep -Eq '^OK$' compatible-alignment-tests.log
       - name: Propose compatible lock updates
         run: python3 scripts/release/align_compatible_locks.py --output release-compatible-locks
       - name: Upload proposed locks and command logs
@@ -32,4 +37,5 @@ jobs:
           if-no-files-found: warn
           path: |
             checkout-sources.log
+            compatible-alignment-tests.log
             release-compatible-locks/

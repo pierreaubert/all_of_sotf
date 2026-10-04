@@ -1,0 +1,2821 @@
+{
+  "kind": "manual-review proposal; no lock publication",
+  "root_release": "8f47236fbc16de88391ddbc33c43224158daebab",
+  "current_vendor_copies": 22,
+  "current_lock_baseline": {
+    "autoeq": {
+      "revision": "46155bf7dbabc7a768c465ef5e3905bec0aac856",
+      "sha256": "ad6b138091fbe9dd61c8d6ec01d729c1dbca5a78127852672414691b7e124f08"
+    },
+    "gpui-toolkit": {
+      "revision": "77d13fa8d9cf1f7462aece14dfd946a3900483be",
+      "sha256": "d314b4d6143019a8b24da59e3fd6e122acd77566495053af55a495a86e22209c"
+    },
+    "math-audio": {
+      "revision": "a1bb01ed86aa2bb701504027c5e737cc0133dea2",
+      "sha256": "3590156d4b34c95f792621d0f3fe808e0c0c9db60fe21a6a0542610863dea0f1"
+    },
+    "sofa-reader": {
+      "revision": "15e78a7af254914787c6e66c617373d77d72e313",
+      "sha256": "b1dd7c8d7ec02da74083a25a1b95369482d8603c88d7c598ad4ce346543ec3dc"
+    },
+    "sotf": {
+      "revision": "b2605692214707cf0a8287c18f1206361748fe6e",
+      "sha256": "154d90e9faf43e9d3c895c653ca8ccc095213731d7898f5a88068b272bd823bb"
+    },
+    "sotf-capture": {
+      "revision": "7cbadd0b66d43ece25f2b629ea6a19a382ccdab5",
+      "sha256": "66f4c2a69fa63e0d9bc9aa70602bbf8930e06d071adafcb4c4af65b6de1386bf"
+    },
+    "sotf-daw": {
+      "revision": "b46dd49d48164343a423ab38e6a0b7f53f68303e",
+      "sha256": "9a0465c66114ac35e3808bec6cc373754171fb36fd252ba421e0bdf2c781dff3"
+    },
+    "sotf-systemwide": {
+      "revision": "4c41171e9af5cdf4ee7fad36ca019ee12075a09f",
+      "sha256": "331b68ef7fee7145be717ac4b5f01048bf0a860ae905568d597b9d0ae5756b25"
+    },
+    "symphonia-add-ons": {
+      "revision": "facbe92fcdeaa228b65d9ba94e1563c4d4924c7a",
+      "sha256": "6b61cd48d1a5a09b7a3e8cdefe02042b153f79630bc78c397ade02f8007b9e76"
+    },
+    "autoeq-gpui-examples": {
+      "revision": "46155bf7dbabc7a768c465ef5e3905bec0aac856",
+      "sha256": "e79a67572ef430d1a537119703bc47ca93a8b1fc5705c72d0b70fa0ecbef54ef"
+    }
+  },
+  "historical_evidence_run": 676,
+  "historical_planned_commands": 194,
+  "current_planned_commands_readonly": 194,
+  "allowed_additions_only_when_exact_parent_edge_present": {
+    "gpui-toolkit": [
+      {
+        "name": "aws-lc-sys",
+        "version": "0.45.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "aws-lc-rs",
+          "version": "1.18.1",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "aws-lc-sys",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "core_detect",
+        "version": "1.0.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "encoding_rs",
+          "version": "0.8.42",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "core_detect",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "miniz_oxide",
+        "version": "0.9.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "flate2",
+          "version": "1.1.10",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "miniz_oxide 0.9.1",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "multiversion_no_op",
+        "version": "1.0.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "encoding_rs",
+          "version": "0.8.42",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "multiversion_no_op",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "rustls-platform-verifier-android",
+        "version": "0.2.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "rustls-platform-verifier",
+          "version": "0.7.1",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "rustls-platform-verifier-android",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "synstructure",
+        "version": "0.14.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "yoke-derive",
+          "version": "0.8.4",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "synstructure",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "zlib-rs",
+        "version": "0.6.8",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "flate2",
+          "version": "1.1.10",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "zlib-rs",
+          "new_in_historical_after": true
+        }
+      }
+    ],
+    "symphonia-add-ons": [
+      {
+        "name": "core_detect",
+        "version": "1.0.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "encoding_rs",
+          "version": "0.8.42",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "core_detect",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "miniz_oxide",
+        "version": "0.9.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "flate2",
+          "version": "1.1.10",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "miniz_oxide",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "multiversion_no_op",
+        "version": "1.0.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "encoding_rs",
+          "version": "0.8.42",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "multiversion_no_op",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "rustversion",
+        "version": "1.0.23",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "encoding_rs",
+          "version": "0.8.42",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "rustversion",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "scopeguard",
+        "version": "1.2.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "encoding_rs",
+          "version": "0.8.42",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "scopeguard",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "simdutf8",
+        "version": "0.1.5",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "encoding_rs",
+          "version": "0.8.42",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "simdutf8",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "zlib-rs",
+        "version": "0.6.8",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "flate2",
+          "version": "1.1.10",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "zlib-rs",
+          "new_in_historical_after": true
+        }
+      }
+    ],
+    "sotf-daw": [
+      {
+        "name": "alsa",
+        "version": "0.11.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "cpal",
+          "version": "0.17.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "alsa",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "alsa-sys",
+        "version": "0.4.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "alsa",
+          "version": "0.11.0",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "alsa-sys",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "coreaudio-rs",
+        "version": "0.14.2",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "cpal",
+          "version": "0.17.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "coreaudio-rs 0.14.2",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "nix",
+        "version": "0.30.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "mac_address",
+          "version": "1.2.0",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "nix 0.30.1",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "rustls-platform-verifier-android",
+        "version": "0.2.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "rustls-platform-verifier",
+          "version": "0.7.1",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "rustls-platform-verifier-android",
+          "new_in_historical_after": true
+        }
+      }
+    ],
+    "sotf": [
+      {
+        "name": "alsa",
+        "version": "0.11.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "cpal",
+          "version": "0.17.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "alsa",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "alsa-sys",
+        "version": "0.4.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "alsa",
+          "version": "0.11.0",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "alsa-sys",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "coreaudio-rs",
+        "version": "0.14.2",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "cpal",
+          "version": "0.17.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "coreaudio-rs 0.14.2",
+          "new_in_historical_after": true
+        }
+      }
+    ],
+    "sotf-systemwide": [
+      {
+        "name": "alsa",
+        "version": "0.11.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "cpal",
+          "version": "0.17.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "alsa",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "alsa-sys",
+        "version": "0.4.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "alsa",
+          "version": "0.11.0",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "alsa-sys",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "coreaudio-rs",
+        "version": "0.14.2",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "cpal",
+          "version": "0.17.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "coreaudio-rs 0.14.2",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "nix",
+        "version": "0.30.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "mac_address",
+          "version": "1.2.0",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "nix 0.30.1",
+          "new_in_historical_after": true
+        }
+      },
+      {
+        "name": "rustls-platform-verifier-android",
+        "version": "0.2.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "required_parent": {
+          "name": "rustls-platform-verifier",
+          "version": "0.7.1",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "dependency_entry": "rustls-platform-verifier-android",
+          "new_in_historical_after": true
+        }
+      }
+    ]
+  },
+  "verification_contract": [
+    "Only canonical crates.io registry identity may match this allowlist.",
+    "Each added companion must have the exact name, version, source and required parent package/version/source/direct dependency string.",
+    "Every other added identity or changed source is a failure retained for manual review.",
+    "Before/after ten lock hashes, all package and edge deltas, and source pins must be reported.",
+    "No candidate Cargo.lock is committed automatically; Linux and macOS checks follow separate lock review.",
+    "The two AutoEQ exact wasm-bindgen manifest pins and gpui-toolkit minicov 0.3.8 forced target must be separately observed in final locks, even if not highest compatible versions."
+  ],
+  "required_source_candidate": {
+    "workspace": "autoeq",
+    "base_revision": "46155bf7dbabc7a768c465ef5e3905bec0aac856",
+    "manifest_hunks": [
+      {
+        "path": "crates/autoeq-report-gpui/Cargo.toml",
+        "dependency": "wasm-bindgen",
+        "from": "=0.2.128",
+        "to": "=0.2.129"
+      },
+      {
+        "path": "crates/autoeq-report-wasm-shell/Cargo.toml",
+        "dependency": "wasm-bindgen",
+        "from": "=0.2.128",
+        "to": "=0.2.129"
+      }
+    ],
+    "candidate_revision": "f6d547dcaeffc1b3ec0b54ab08a75f54f0d6d681"
+  },
+  "forced_coupled_companion": {
+    "workspace": "gpui-toolkit",
+    "package": "minicov",
+    "source": "registry+https://github.com/rust-lang/crates.io-index",
+    "from": "0.3.9",
+    "to": "0.3.8",
+    "reason": "reviewed exact wasm-bindgen-test dependency from #676; highest-version rule is insufficient"
+  },
+  "exact_current_target_commands": [
+    {
+      "workspace": "autoeq",
+      "package": "js-sys",
+      "from": "0.3.105",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "autoeq",
+      "package": "wasm-bindgen",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "autoeq",
+      "package": "wasm-bindgen-futures",
+      "from": "0.4.78",
+      "to": "0.4.79",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "autoeq",
+      "package": "wasm-bindgen-macro",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "autoeq",
+      "package": "wasm-bindgen-macro-support",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "autoeq",
+      "package": "wasm-bindgen-shared",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "autoeq",
+      "package": "web-sys",
+      "from": "0.3.105",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "js-sys",
+      "from": "0.3.104",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "minicov",
+      "from": "0.3.9",
+      "to": "0.3.8",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-futures",
+      "from": "0.4.77",
+      "to": "0.4.79",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-macro",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-macro-support",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-shared",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-test",
+      "from": "0.3.77",
+      "to": "0.3.79",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-test-macro",
+      "from": "0.3.77",
+      "to": "0.3.79",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-test-shared",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "web-sys",
+      "from": "0.3.104",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "js-sys",
+      "from": "0.3.105",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "wasm-bindgen",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "wasm-bindgen-futures",
+      "from": "0.4.78",
+      "to": "0.4.79",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "wasm-bindgen-macro",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "wasm-bindgen-macro-support",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "wasm-bindgen-shared",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "web-sys",
+      "from": "0.3.105",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "js-sys",
+      "from": "0.3.105",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "wasm-bindgen",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "wasm-bindgen-futures",
+      "from": "0.4.78",
+      "to": "0.4.79",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "wasm-bindgen-macro",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "wasm-bindgen-macro-support",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "wasm-bindgen-shared",
+      "from": "0.2.128",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "web-sys",
+      "from": "0.3.105",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "autoeq",
+      "package": "tokio",
+      "from": "1.53.1",
+      "to": "1.53.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "async-compression",
+      "from": "0.4.43",
+      "to": "0.4.50",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "aws-lc-rs",
+      "from": "1.18.0",
+      "to": "1.18.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "bitflags",
+      "from": "2.13.1",
+      "to": "2.13.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "borsh",
+      "from": "1.8.0",
+      "to": "1.8.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "bytemuck_derive",
+      "from": "1.12.0",
+      "to": "1.12.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "calloop",
+      "from": "0.14.4",
+      "to": "0.14.5",
+      "compatibility": [
+        0,
+        14
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "cc",
+      "from": "1.4.4",
+      "to": "1.6.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "cfg-if",
+      "from": "1.0.4",
+      "to": "1.0.5",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "clap",
+      "from": "4.6.6",
+      "to": "4.6.7",
+      "compatibility": [
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "clap_builder",
+      "from": "4.6.6",
+      "to": "4.6.7",
+      "compatibility": [
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "clap_derive",
+      "from": "4.6.4",
+      "to": "4.6.7",
+      "compatibility": [
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "clap_lex",
+      "from": "1.1.0",
+      "to": "1.1.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "combine",
+      "from": "4.6.7",
+      "to": "4.6.8",
+      "compatibility": [
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "compression-codecs",
+      "from": "0.4.38",
+      "to": "0.4.45",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "compression-core",
+      "from": "0.4.32",
+      "to": "0.4.33",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "cpufeatures",
+      "from": "0.3.0",
+      "to": "0.3.1",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "crc32fast",
+      "from": "1.5.1",
+      "to": "1.5.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "crossbeam-channel",
+      "from": "0.5.16",
+      "to": "0.5.17",
+      "compatibility": [
+        0,
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "crossbeam-deque",
+      "from": "0.8.7",
+      "to": "0.8.8",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "crossbeam-epoch",
+      "from": "0.9.20",
+      "to": "0.9.21",
+      "compatibility": [
+        0,
+        9
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "crossbeam-utils",
+      "from": "0.8.22",
+      "to": "0.8.23",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "encoding_rs",
+      "from": "0.8.35",
+      "to": "0.8.42",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "find-msvc-tools",
+      "from": "0.1.11",
+      "to": "0.1.14",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "flate2",
+      "from": "1.1.9",
+      "to": "1.1.10",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "font-types",
+      "from": "0.12.4",
+      "to": "0.12.6",
+      "compatibility": [
+        0,
+        12
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "glam",
+      "from": "0.33.5",
+      "to": "0.33.12",
+      "compatibility": [
+        0,
+        33
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "hermit-abi",
+      "from": "0.5.2",
+      "to": "0.5.3",
+      "compatibility": [
+        0,
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "hybrid-array",
+      "from": "0.4.14",
+      "to": "0.4.15",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "hyper",
+      "from": "1.11.0",
+      "to": "1.11.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "hyper-rustls",
+      "from": "0.27.9",
+      "to": "0.27.10",
+      "compatibility": [
+        0,
+        27
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "hyper-util",
+      "from": "0.1.20",
+      "to": "0.1.21",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "indexmap",
+      "from": "2.14.0",
+      "to": "2.14.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "ipnet",
+      "from": "2.12.1",
+      "to": "2.12.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "jiff",
+      "from": "0.2.35",
+      "to": "0.2.37",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "jiff-core",
+      "from": "0.1.0",
+      "to": "0.1.1",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "jiff-static",
+      "from": "0.2.35",
+      "to": "0.2.37",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "lazy_static",
+      "from": "1.5.0",
+      "to": "1.5.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "libc",
+      "from": "0.2.189",
+      "to": "0.2.190",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "libredox",
+      "from": "0.1.20",
+      "to": "0.1.25",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "lru-slab",
+      "from": "0.1.2",
+      "to": "0.1.3",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "lyon_algorithms",
+      "from": "1.0.20",
+      "to": "1.0.21",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "lyon_tessellation",
+      "from": "1.0.20",
+      "to": "1.0.22",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "mio",
+      "from": "1.2.2",
+      "to": "1.2.3",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "open",
+      "from": "5.4.2",
+      "to": "5.4.4",
+      "compatibility": [
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "ordered-float",
+      "from": "5.4.0",
+      "to": "5.5.0",
+      "compatibility": [
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "portable-atomic-util",
+      "from": "0.2.7",
+      "to": "0.2.8",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "quinn",
+      "from": "0.11.11",
+      "to": "0.11.12",
+      "compatibility": [
+        0,
+        11
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "quinn-proto",
+      "from": "0.11.17",
+      "to": "0.11.19",
+      "compatibility": [
+        0,
+        11
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "quinn-udp",
+      "from": "0.5.15",
+      "to": "0.5.16",
+      "compatibility": [
+        0,
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "rand",
+      "from": "0.10.2",
+      "to": "0.10.3",
+      "compatibility": [
+        0,
+        10
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "rand",
+      "from": "0.8.7",
+      "to": "0.8.8",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "redox_users",
+      "from": "0.5.2",
+      "to": "0.5.3",
+      "compatibility": [
+        0,
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "reqwest",
+      "from": "0.13.4",
+      "to": "0.13.5",
+      "compatibility": [
+        0,
+        13
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "rustix",
+      "from": "1.1.4",
+      "to": "1.1.5",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "rustls-platform-verifier",
+      "from": "0.7.0",
+      "to": "0.7.1",
+      "compatibility": [
+        0,
+        7
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "siphasher",
+      "from": "1.0.3",
+      "to": "1.0.4",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "smallvec",
+      "from": "1.15.2",
+      "to": "1.16.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval_buffer",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval_dynamic",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval_fmt",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval_json",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval_nested",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval_ref",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "sval_serde",
+      "from": "2.21.1",
+      "to": "2.22.0",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "syn",
+      "from": "3.0.4",
+      "to": "3.0.6",
+      "compatibility": [
+        3
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "thiserror",
+      "from": "2.0.20",
+      "to": "2.0.21",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "thiserror-impl",
+      "from": "2.0.20",
+      "to": "2.0.21",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "tinyvec",
+      "from": "1.12.0",
+      "to": "1.13.3",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "tokio",
+      "from": "1.53.1",
+      "to": "1.53.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "tokio-rustls",
+      "from": "0.26.4",
+      "to": "0.26.6",
+      "compatibility": [
+        0,
+        26
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "toml",
+      "from": "1.1.4+spec-1.1.0",
+      "to": "1.1.6+spec-1.1.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "toml_edit",
+      "from": "0.25.13+spec-1.1.0",
+      "to": "0.25.15+spec-1.1.0",
+      "compatibility": [
+        0,
+        25
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "unicode-ident",
+      "from": "1.0.24",
+      "to": "1.0.26",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "uuid",
+      "from": "1.25.0",
+      "to": "1.27.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "value-bag",
+      "from": "1.13.2",
+      "to": "1.14.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "value-bag-serde1",
+      "from": "1.13.2",
+      "to": "1.14.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "value-bag-sval2",
+      "from": "1.13.2",
+      "to": "1.14.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "yoke-derive",
+      "from": "0.8.2",
+      "to": "0.8.4",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "zerocopy",
+      "from": "0.8.56",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "zerocopy-derive",
+      "from": "0.8.56",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "zerofrom-derive",
+      "from": "0.1.7",
+      "to": "0.1.8",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "math-audio",
+      "package": "tokio",
+      "from": "1.53.1",
+      "to": "1.53.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf",
+      "package": "cpal",
+      "from": "0.17.1",
+      "to": "0.17.3",
+      "compatibility": [
+        0,
+        17
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf",
+      "package": "tokio",
+      "from": "1.53.1",
+      "to": "1.53.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "async-compression",
+      "from": "0.4.48",
+      "to": "0.4.50",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "calloop",
+      "from": "0.14.4",
+      "to": "0.14.5",
+      "compatibility": [
+        0,
+        14
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "cc",
+      "from": "1.4.7",
+      "to": "1.6.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "compression-codecs",
+      "from": "0.4.43",
+      "to": "0.4.45",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "cpal",
+      "from": "0.17.1",
+      "to": "0.17.3",
+      "compatibility": [
+        0,
+        17
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "find-msvc-tools",
+      "from": "0.1.13",
+      "to": "0.1.14",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "font-types",
+      "from": "0.12.5",
+      "to": "0.12.6",
+      "compatibility": [
+        0,
+        12
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "glam",
+      "from": "0.33.9",
+      "to": "0.33.12",
+      "compatibility": [
+        0,
+        33
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "insta",
+      "from": "1.48.0",
+      "to": "1.49.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "lazy_static",
+      "from": "1.5.0",
+      "to": "1.5.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "libc",
+      "from": "0.2.189",
+      "to": "0.2.190",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "mac_address",
+      "from": "1.1.8",
+      "to": "1.2.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "quinn-proto",
+      "from": "0.11.18",
+      "to": "0.11.19",
+      "compatibility": [
+        0,
+        11
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "quinn-udp",
+      "from": "0.5.15",
+      "to": "0.5.16",
+      "compatibility": [
+        0,
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "rustls-platform-verifier",
+      "from": "0.7.0",
+      "to": "0.7.1",
+      "compatibility": [
+        0,
+        7
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "siphasher",
+      "from": "1.0.3",
+      "to": "1.0.4",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "smallvec",
+      "from": "1.16.1",
+      "to": "1.16.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "tokio",
+      "from": "1.53.1",
+      "to": "1.53.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "tokio-rustls",
+      "from": "0.26.5",
+      "to": "0.26.6",
+      "compatibility": [
+        0,
+        26
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "uuid",
+      "from": "1.26.1",
+      "to": "1.27.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "yoke-derive",
+      "from": "0.8.3",
+      "to": "0.8.4",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "zerocopy",
+      "from": "0.8.58",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-daw",
+      "package": "zerocopy-derive",
+      "from": "0.8.58",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "cc",
+      "from": "1.4.7",
+      "to": "1.6.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "cpal",
+      "from": "0.17.1",
+      "to": "0.17.3",
+      "compatibility": [
+        0,
+        17
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "encoding_rs",
+      "from": "0.8.41",
+      "to": "0.8.42",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "find-msvc-tools",
+      "from": "0.1.13",
+      "to": "0.1.14",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "glam",
+      "from": "0.33.8",
+      "to": "0.33.12",
+      "compatibility": [
+        0,
+        33
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "hyper-rustls",
+      "from": "0.27.9",
+      "to": "0.27.10",
+      "compatibility": [
+        0,
+        27
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "hyper-util",
+      "from": "0.1.20",
+      "to": "0.1.21",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "id3",
+      "from": "1.17.1",
+      "to": "1.17.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "insta",
+      "from": "1.48.0",
+      "to": "1.49.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "instability",
+      "from": "0.3.13",
+      "to": "0.3.14",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "lazy_static",
+      "from": "1.5.0",
+      "to": "1.5.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "libc",
+      "from": "0.2.189",
+      "to": "0.2.190",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "libredox",
+      "from": "0.1.24",
+      "to": "0.1.25",
+      "compatibility": [
+        0,
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "lru",
+      "from": "0.18.4",
+      "to": "0.18.5",
+      "compatibility": [
+        0,
+        18
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "mac_address",
+      "from": "1.1.8",
+      "to": "1.2.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "pest",
+      "from": "2.9.1",
+      "to": "2.9.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "pest_derive",
+      "from": "2.9.1",
+      "to": "2.9.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "pest_generator",
+      "from": "2.9.1",
+      "to": "2.9.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "pest_meta",
+      "from": "2.9.1",
+      "to": "2.9.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "quinn-proto",
+      "from": "0.11.18",
+      "to": "0.11.19",
+      "compatibility": [
+        0,
+        11
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "quinn-udp",
+      "from": "0.5.15",
+      "to": "0.5.16",
+      "compatibility": [
+        0,
+        5
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "rustls-platform-verifier",
+      "from": "0.7.0",
+      "to": "0.7.1",
+      "compatibility": [
+        0,
+        7
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "siphasher",
+      "from": "1.0.3",
+      "to": "1.0.4",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "smallvec",
+      "from": "1.16.1",
+      "to": "1.16.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "thiserror",
+      "from": "2.0.20",
+      "to": "2.0.21",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "thiserror-impl",
+      "from": "2.0.20",
+      "to": "2.0.21",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "tokio",
+      "from": "1.53.1",
+      "to": "1.53.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "tokio-rustls",
+      "from": "0.26.5",
+      "to": "0.26.6",
+      "compatibility": [
+        0,
+        26
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "uuid",
+      "from": "1.26.1",
+      "to": "1.27.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "yoke-derive",
+      "from": "0.8.3",
+      "to": "0.8.4",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "zerocopy",
+      "from": "0.8.57",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "sotf-systemwide",
+      "package": "zerocopy-derive",
+      "from": "0.8.57",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "bitflags",
+      "from": "2.13.1",
+      "to": "2.13.2",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "cfg-if",
+      "from": "1.0.4",
+      "to": "1.0.5",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "crc32fast",
+      "from": "1.5.0",
+      "to": "1.5.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "crossbeam-deque",
+      "from": "0.8.7",
+      "to": "0.8.8",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "crossbeam-epoch",
+      "from": "0.9.20",
+      "to": "0.9.21",
+      "compatibility": [
+        0,
+        9
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "crossbeam-utils",
+      "from": "0.8.22",
+      "to": "0.8.23",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "either",
+      "from": "1.17.0",
+      "to": "1.18.0",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "encoding_rs",
+      "from": "0.8.35",
+      "to": "0.8.42",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "flate2",
+      "from": "1.1.9",
+      "to": "1.1.10",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "id3",
+      "from": "1.17.1",
+      "to": "1.17.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "lazy_static",
+      "from": "1.5.0",
+      "to": "1.5.1",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "libc",
+      "from": "0.2.189",
+      "to": "0.2.190",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "log",
+      "from": "0.4.33",
+      "to": "0.4.34",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "rustix",
+      "from": "1.1.4",
+      "to": "1.1.5",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "smallvec",
+      "from": "1.15.2",
+      "to": "1.16.2",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "syn",
+      "from": "3.0.3",
+      "to": "3.0.6",
+      "compatibility": [
+        3
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "thiserror",
+      "from": "2.0.20",
+      "to": "2.0.21",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "thiserror-impl",
+      "from": "2.0.20",
+      "to": "2.0.21",
+      "compatibility": [
+        2
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "unicode-ident",
+      "from": "1.0.24",
+      "to": "1.0.26",
+      "compatibility": [
+        1
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "zerocopy",
+      "from": "0.8.56",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "symphonia-add-ons",
+      "package": "zerocopy-derive",
+      "from": "0.8.56",
+      "to": "0.8.59",
+      "compatibility": [
+        0,
+        8
+      ],
+      "coupled_wasm_family": false,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+  ],
+  "expected_coupled_wasm_gpui_targets": [
+    {
+      "workspace": "gpui-toolkit",
+      "package": "js-sys",
+      "from": "0.3.104",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "minicov",
+      "from": "0.3.9",
+      "to": "0.3.8",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-futures",
+      "from": "0.4.77",
+      "to": "0.4.79",
+      "compatibility": [
+        0,
+        4
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-macro",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-macro-support",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-shared",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-test",
+      "from": "0.3.77",
+      "to": "0.3.79",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-test-macro",
+      "from": "0.3.77",
+      "to": "0.3.79",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "wasm-bindgen-test-shared",
+      "from": "0.2.127",
+      "to": "0.2.129",
+      "compatibility": [
+        0,
+        2
+      ],
+      "coupled_wasm_family": true,
+      "target_origin": "reviewed exact wasm-bindgen-test dependency companion",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "workspace": "gpui-toolkit",
+      "package": "web-sys",
+      "from": "0.3.104",
+      "to": "0.3.106",
+      "compatibility": [
+        0,
+        3
+      ],
+      "coupled_wasm_family": true,
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+  ],
+  "expected_candidate_source_revisions": {
+    "autoeq": "f6d547dcaeffc1b3ec0b54ab08a75f54f0d6d681",
+    "gpui-toolkit": "77d13fa8d9cf1f7462aece14dfd946a3900483be",
+    "math-audio": "a1bb01ed86aa2bb701504027c5e737cc0133dea2",
+    "sofa-reader": "15e78a7af254914787c6e66c617373d77d72e313",
+    "sotf": "b2605692214707cf0a8287c18f1206361748fe6e",
+    "sotf-capture": "7cbadd0b66d43ece25f2b629ea6a19a382ccdab5",
+    "sotf-daw": "b46dd49d48164343a423ab38e6a0b7f53f68303e",
+    "sotf-systemwide": "4c41171e9af5cdf4ee7fad36ca019ee12075a09f",
+    "symphonia-add-ons": "facbe92fcdeaa228b65d9ba94e1563c4d4924c7a"
+  }
+}

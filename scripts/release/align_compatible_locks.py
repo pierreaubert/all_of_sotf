@@ -45,6 +45,8 @@ WASM_FAMILY = {"wasm-bindgen", "wasm-bindgen-futures", "wasm-bindgen-macro",
 WASM_TEST_COMPANIONS = (("wasm-bindgen-test", "0.3.77", "0.3.79"),
                         ("wasm-bindgen-test-macro", "0.3.77", "0.3.79"),
                         ("wasm-bindgen-test-shared", "0.2.127", "0.2.129"))
+# wasm-bindgen-test 0.3.79 pins minicov 0.3.8; GPUI currently carries 0.3.9.
+WASM_FORCED_COMPANIONS = (("minicov", "0.3.9", "0.3.8"),)
 CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
 ACTIVE: subprocess.Popen | None = None
 
@@ -96,11 +98,91 @@ def registry_versions(lock: Path) -> dict[str, set[str]]:
     return found
 
 
+def coupled_wasm_versions(lock: Path) -> dict[str, list[str]]:
+    observed = family_versions(lock)
+    versions = registry_versions(lock)
+    for package, _, _ in WASM_FORCED_COMPANIONS:
+        if package in versions:
+            observed[package] = sorted(versions[package])
+    return observed
+
+
 def package_ids(lock: Path) -> set[tuple[str, str, str]]:
     return {
         (item["name"], item["version"], item.get("source", ""))
         for item in tomllib.loads(lock.read_text(encoding="utf-8")).get("package", [])
     }
+
+
+def lock_packages(lock: Path) -> list[dict]:
+    return tomllib.loads(lock.read_text(encoding="utf-8")).get("package", [])
+
+
+def identity(package: dict) -> tuple[str, str, str]:
+    return package["name"], package["version"], package.get("source", "")
+
+
+def resolved_dependency(reference: str, packages: list[dict]) -> tuple[str, str, str]:
+    # Cargo.lock omits the version/source only when the reference is unique.
+    match = re.fullmatch(r"([^ ]+)(?: ([^ ()]+))?(?: \(([^)]+)\))?", reference)
+    if match is None:
+        raise ValueError(f"unparseable Cargo.lock dependency: {reference}")
+    name, version, source = match.groups()
+    candidates = [identity(item) for item in packages if item["name"] == name
+                  and (version is None or item["version"] == version)
+                  and (source is None or item.get("source", "") == source)]
+    if len(candidates) != 1:
+        raise ValueError(f"ambiguous Cargo.lock dependency: {reference}")
+    return candidates[0]
+
+
+def companion_observations(name: str, added: set[tuple[str, str, str]],
+                           packages: list[dict], rules: dict[str, list[dict]]) -> list[dict]:
+    approved = {(row["name"], row["version"], row["source"]): row
+                for row in rules.get(name, [])}
+    observations = []
+    for child in sorted(added):
+        row = approved.get(child)
+        if row is None:
+            raise ValueError(f"{name}: unreviewed registry or source addition {child}")
+        expected = row["required_parent"]
+        parent_id = (expected["name"], expected["version"], expected["source"])
+        parents = [item for item in packages if identity(item) == parent_id]
+        if len(parents) != 1:
+            raise ValueError(f"{name}: required companion parent absent or ambiguous: {parent_id}")
+        entries = parents[0].get("dependencies", [])
+        matching = [edge for edge in entries if edge.split(" ", 1)[0] == child[0]
+                    and resolved_dependency(edge, packages) == child]
+        if len(matching) != 1:
+            raise ValueError(f"{name}: required parent edge does not resolve uniquely to {child}")
+        observations.append({"child": child, "parent": parent_id,
+                             "dependency_entry": matching[0], "resolved_edge": True})
+    return observations
+
+
+def global_identity_guard(before: dict[str, Path], after: dict[str, Path]) -> dict:
+    def groups(paths: dict[str, Path]) -> tuple[dict[str, set[tuple[str, str, str]]],
+                                               set[tuple[str, str, str]]]:
+        found: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
+        git_ids = set()
+        for lock in paths.values():
+            for item in lock_packages(lock):
+                package = identity(item)
+                found[package[0]].add(package)
+                if package[2].startswith("git+"):
+                    git_ids.add(package)
+        return found, git_ids
+    old, old_git = groups(before)
+    new, new_git = groups(after)
+    old_duplicates = {name for name, ids in old.items() if len(ids) > 1}
+    new_duplicates = {name for name, ids in new.items() if len(ids) > 1}
+    return {"before_duplicate_names": len(old_duplicates),
+            "after_duplicate_names": len(new_duplicates),
+            "new_duplicate_names": sorted(new_duplicates - old_duplicates),
+            "expanded_identity_names": sorted(name for name, ids in new.items()
+                                              if len(ids) > 1 and len(ids) > len(old.get(name, set()))),
+            "git_identities_added": sorted(new_git - old_git),
+            "git_identities_removed": sorted(old_git - new_git)}
 
 
 def family_versions(lock: Path) -> dict[str, list[str]]:
@@ -147,6 +229,22 @@ def plans(specs: list[tuple[str, Path, Path]]) -> tuple[list[dict], list[dict]]:
                             "from": old, "to": target,
                             "compatibility": compatibility(old),
                             "target_origin": "reviewed crates.io exact-dependency companion",
+                            "coupled_wasm_family": True})
+    # This downgrade is forced by the reviewed wasm-bindgen-test 0.3.79
+    # manifest, not inferred from a globally higher registry version.
+    for name, _, lock in specs:
+        versions = registry_versions(lock)
+        core_target = any(item["workspace"] == name and item["package"] == "wasm-bindgen"
+                          and item["to"] == "0.2.129" for item in updates)
+        if not core_target:
+            continue
+        for package, old, target in WASM_FORCED_COMPANIONS:
+            if old not in versions.get(package, set()):
+                continue
+            updates.append({"workspace": name, "package": package,
+                            "from": old, "to": target,
+                            "compatibility": compatibility(old),
+                            "target_origin": "reviewed wasm-bindgen-test exact-dependency companion",
                             "coupled_wasm_family": True})
     updates.sort(key=lambda item: (not item["coupled_wasm_family"], item["workspace"],
                                    item["package"], version_key(item["from"])))
@@ -221,31 +319,26 @@ def interrupted(_signum: int, _frame: object) -> None:
     raise KeyboardInterrupt("release alignment interrupted")
 
 
-def command(argv: list[str], cwd: Path, log: Path, timeout: int) -> dict:
+def command(argv: list[str], cwd: Path, log: Path) -> dict:
     global ACTIVE
     start = time.monotonic()
     with log.open("wb") as stream:
         ACTIVE = subprocess.Popen(argv, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
                                   start_new_session=True)
         try:
-            deadline = start + timeout
             while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    code, timed_out, was_interrupted = 124, True, False
-                    break
                 try:
-                    code = ACTIVE.wait(timeout=min(30, remaining))
-                    timed_out, was_interrupted = False, False
+                    code = ACTIVE.wait(timeout=30)
+                    was_interrupted = False
                     break
                 except subprocess.TimeoutExpired:
                     print(f"[{cwd.name}] alignment command still running; owned PID {ACTIVE.pid}", flush=True)
         except KeyboardInterrupt:
-            code, timed_out, was_interrupted = 130, False, True
+            code, was_interrupted = 130, True
         finally:
             clean, survivors, inspection_errors = stop_group(ACTIVE)
             ACTIVE = None
-        return {"argv": argv, "exit_code": code, "timeout": timed_out,
+        return {"argv": argv, "exit_code": code,
                 "interrupted": was_interrupted, "cleanup_ok": clean,
                 "owned_group_survivors": survivors,
                 "cleanup_inspection_errors": inspection_errors,
@@ -262,10 +355,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, default=ROOT / "release-compatible-locks")
-    parser.add_argument("--timeout-per-update", type=int, default=300)
     args = parser.parse_args()
-    if not 1 <= args.timeout_per_update <= 900:
-        parser.error("timeout-per-update must be 1..900 seconds")
     root = args.root.resolve()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -281,10 +371,16 @@ def main() -> int:
     report_path = output / "report.json"
     write_report(report_path, report)
     specs = lock_specs(root)
+    reviewed = json.loads((root / "scripts/release/compatible_alignment_manifest.json")
+                          .read_text(encoding="utf-8"))
+    report["review_manifest_sha256"] = sha(root / "scripts/release/compatible_alignment_manifest.json")
     revisions: dict[str, str] = {}
     try:
         enable_subreaper()
         _, _, revisions = read_manifest(manifest)
+        if revisions != reviewed["expected_candidate_source_revisions"]:
+            report["issues"].append("source manifest differs from reviewed alignment candidate")
+            raise RuntimeError("alignment source pin drift; no updates started")
         for name in WORKSPACES:
             repo = root / name
             actual = git(repo, "rev-parse", "HEAD")
@@ -297,6 +393,8 @@ def main() -> int:
                 report["issues"].append(f"{name}: Cargo.lock missing")
                 continue
             report["locks"][name] = {"before_sha256": sha(lock)}
+            if sha(lock) != reviewed["current_lock_baseline"][name]["sha256"]:
+                report["issues"].append(f"{name}: lock differs from reviewed 22-vendor baseline")
             report["wasm_family"][name] = {"before": family_versions(lock)}
             destination = output / "locks" / name
             destination.mkdir()
@@ -304,6 +402,13 @@ def main() -> int:
         if report["issues"]:
             raise RuntimeError("source or lock preflight failed")
         proposed, rejected = plans(specs)
+        actual_targets = {(item["workspace"], item["package"], item["from"], item["to"])
+                          for item in proposed}
+        reviewed_targets = {(item["workspace"], item["package"], item["from"], item["to"])
+                            for item in reviewed["exact_current_target_commands"]}
+        if len(proposed) != len(reviewed_targets) or actual_targets != reviewed_targets:
+            report["issues"].append("captured exact target map differs from reviewed 22-vendor plan")
+            raise RuntimeError("alignment target drift; no updates started")
         report["plan"] = proposed
         report["manual_review"] = rejected
         report["wasm_batches"] = []
@@ -319,10 +424,15 @@ def main() -> int:
                            and item["coupled_wasm_family"]]
             if not family_plan:
                 continue
-            before_family = family_versions(lock)
+            before_family = coupled_wasm_versions(lock)
             selected = sorted(f"{package}@{version}"
                               for package, versions in before_family.items()
                               for version in versions)
+            forced_selected = sorted(
+                f"{item['package']}@{item['from']}" for item in family_plan
+                if item["package"] in {package for package, _, _ in WASM_FORCED_COMPANIONS}
+            )
+            selected = sorted(set(selected + forced_selected))
             targets = {package: sorted({item["to"] for item in family_plan
                                         if item["package"] == package})
                        for package in sorted({item["package"] for item in family_plan})}
@@ -332,11 +442,10 @@ def main() -> int:
             argv = ["cargo", "update"]
             for spec in selected:
                 argv.extend(["-p", spec])
-            result = command(argv, cwd, output / "logs" / f"wasm-batch-{name}.log",
-                             args.timeout_per_update)
+            result = command(argv, cwd, output / "logs" / f"wasm-batch-{name}.log")
             report["commands"].append(result)
             batch["command"] = result
-            batch["after"] = family_versions(lock)
+            batch["after"] = coupled_wasm_versions(lock)
             batch["status"] = "UPDATED" if result["exit_code"] == 0 and result["cleanup_ok"] else "FAIL"
             if batch["status"] == "FAIL":
                 report["issues"].append(f"{name}: coupled Wasm unlock failed; partial lock retained")
@@ -377,8 +486,7 @@ def main() -> int:
                 continue
             argv = ["cargo", "update", "-p", f"{item['package']}@{item['from']}",
                     "--precise", item["to"]]
-            result = command(argv, cwd, output / "logs" / f"{number:03d}-{name}-{item['package']}.log",
-                             args.timeout_per_update)
+            result = command(argv, cwd, output / "logs" / f"{number:03d}-{name}-{item['package']}.log")
             report["commands"].append(result)
             item["status"] = "UPDATED" if result["exit_code"] == 0 and result["cleanup_ok"] else "FAIL"
             write_report(report_path, report)
@@ -389,7 +497,7 @@ def main() -> int:
             for name, cwd, _ in specs:
                 result = command(["cargo", "metadata", "--locked", "--all-features",
                                   "--format-version", "1", "--no-deps"],
-                                 cwd, output / "logs" / f"metadata-{name}.log", 300)
+                                 cwd, output / "logs" / f"metadata-{name}.log")
                 report["commands"].append(result)
                 if result["exit_code"] != 0 or not result["cleanup_ok"]:
                     report["issues"].append(f"{name}: final locked metadata failed")
@@ -419,18 +527,30 @@ def main() -> int:
                     (item["package"], item["to"], CRATES_IO)
                     for item in report.get("plan", []) if item["workspace"] == name
                 }
+                packages = lock_packages(lock)
+                extra = (after_ids - before_ids) - planned_targets
+                report.setdefault("companion_edges", {})[name] = companion_observations(
+                    name, extra, packages,
+                    reviewed["allowed_additions_only_when_exact_parent_edge_present"])
                 report["package_changes"][name] = {
                     "added": sorted(after_ids - before_ids),
                     "removed": sorted(before_ids - after_ids),
-                    "unexpected_additions": sorted((after_ids - before_ids) - planned_targets),
+                    "unexpected_additions": sorted(extra),
                 }
-                if report["package_changes"][name]["unexpected_additions"]:
-                    report["issues"].append(
-                        f"{name}: unexpected package/source/version additions require review"
-                    )
                 report["wasm_family"].setdefault(name, {})["after"] = family_versions(lock)
-            except OSError as error:
-                report["issues"].append(f"{name}: could not preserve partial lock: {error}")
+            except (OSError, ValueError, KeyError) as error:
+                report["issues"].append(f"{name}: could not validate or preserve partial lock: {error}")
+        try:
+            before_locks = {name: output / "locks" / name / "Cargo.lock.before"
+                            for name, _, _ in specs}
+            after_locks = {name: lock for name, _, lock in specs}
+            report["global_identity_guard"] = global_identity_guard(before_locks, after_locks)
+            guard = report["global_identity_guard"]
+            if (guard["new_duplicate_names"] or guard["expanded_identity_names"]
+                    or guard["git_identities_added"] or guard["git_identities_removed"]):
+                report["issues"].append("global duplicate cardinality or Git fork identity changed")
+        except (OSError, ValueError, KeyError) as error:
+            report["issues"].append(f"global identity guard unavailable: {error}")
         for item in report.get("plan", []):
             name = item["workspace"]
             lock = next(path for label, _, path in specs if label == name)
