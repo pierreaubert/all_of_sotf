@@ -63,7 +63,7 @@ def run_case(name: str, output: Path, fixture: Path | None, report: dict) -> dic
     capture.mkdir()
     log = output / f"{name}.log"
     command = ["cargo", "test", "--locked", "-p", "sotf-plugin-upmixer",
-               "--features", "onnx", "--lib", TEST_NAME, "--", "--nocapture",
+               "--features", "onnx", "--lib", TEST_NAME, "--", "--show-output",
                "--test-threads=1"]
     environment = os.environ.copy()
     environment["SOTF_AUD132_CAPTURE_DIR"] = str(capture)

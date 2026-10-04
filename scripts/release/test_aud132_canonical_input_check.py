@@ -25,8 +25,13 @@ class Aud132CanonicalInputTests(unittest.TestCase):
                 gate.validate_fixture(fixture)
 
     def test_positive_inventory_requires_named_leaf_and_clean_summary(self) -> None:
-        good = (f"test stream_boundary_tests::{gate.TEST_NAME} ... ok\n"
-                "test result: ok. 1 passed; 0 failed; 0 ignored; 146 filtered out;\n")
+        good = (f"test stream_boundary_tests::{gate.TEST_NAME} ... ok\n\n"
+                "successes:\n\n"
+                f"---- stream_boundary_tests::{gate.TEST_NAME} stdout ----\n"
+                "AUD132 pre-edit control N=2 HR=false frames=4609 latency=512 digest=02ddc52702cb7e9f\n\n"
+                "successes:\n"
+                f"    stream_boundary_tests::{gate.TEST_NAME}\n\n"
+                "test result: ok. 1 passed; 0 failed; 0 ignored; 149 filtered out;\n")
         self.assertTrue(gate.positive_inventory(good))
         self.assertFalse(gate.positive_inventory(good.replace(gate.TEST_NAME, "different_test")))
         self.assertFalse(gate.positive_inventory(good.replace("0 ignored", "1 ignored")))
