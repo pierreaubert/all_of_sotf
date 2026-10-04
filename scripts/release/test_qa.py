@@ -2,7 +2,13 @@
 
 from pathlib import Path
 import json
+import os
+import signal
+import subprocess
 import sys
+import time
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 import qa
@@ -58,6 +64,151 @@ def test_successful_command_cannot_change_lockfile(tmp_path, monkeypatch):
     result = qa.run_workspace("sotf", "check", tmp_path, output, False)
     assert result["status"] == "FAIL"
     assert result["error"] == "sotf: Cargo.lock changed"
+
+
+def test_macos_command_with_surviving_owned_group_cannot_pass(tmp_path, monkeypatch):
+    _, output = fake_workspace(tmp_path, monkeypatch)
+    monkeypatch.setattr(qa, "commands_for", lambda *_: [("cargo", "check")])
+
+    class CompletedProcess:
+        pid = 12345
+        returncode = 0
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(qa.subprocess, "Popen", lambda *args, **kwargs: CompletedProcess())
+    monkeypatch.setattr(qa, "clean_mac_command_group", lambda _process: {
+        "ok": False,
+        "survivors": [{"pid": "12346", "pgid": "12345", "state": "R"}],
+        "errors": [],
+    })
+    result = qa.run_workspace("sotf", "check", tmp_path, output, False, "macos")
+    assert result["status"] == "FAIL"
+    assert result["commands"][0]["exit_code"] == 0
+    assert result["commands"][0]["owned_group_cleanup"]["survivors"][0]["pid"] == "12346"
+    assert result["error"] == "owned command group did not cleanly terminate"
+
+
+def test_macos_registration_failure_still_cleans_started_group(tmp_path, monkeypatch):
+    _, output = fake_workspace(tmp_path, monkeypatch)
+    monkeypatch.setattr(qa, "commands_for", lambda *_: [("cargo", "check")])
+
+    class StartedProcess:
+        pid = 12345
+        returncode = None
+
+    monkeypatch.setattr(qa.subprocess, "Popen", lambda *args, **kwargs: StartedProcess())
+    writes = 0
+
+    def fail_registration(*_args):
+        nonlocal writes
+        writes += 1
+        if writes == 2:
+            raise OSError("report disk unavailable")
+
+    cleaned = []
+    monkeypatch.setattr(qa, "write_report", fail_registration)
+    monkeypatch.setattr(qa, "clean_mac_command_group", lambda process: (
+        cleaned.append(process.pid) or {"ok": True, "survivors": [], "errors": []}
+    ))
+    result = qa.run_workspace("sotf", "check", tmp_path, output, False, "macos",
+                              {"workspaces": []}, output / "report.json")
+    assert cleaned == [12345]
+    assert result["status"] == "FAIL"
+    assert result["commands"][0]["owned_group_cleanup"]["ok"]
+    assert result["commands"][0]["exit_code"] == 127
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS process-group cleanup contract")
+def test_macos_group_cleanup_stops_descendant_after_leader_exits():
+    leader = subprocess.Popen(
+        [sys.executable, "-c", "import subprocess,sys,time; "
+         "subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)']); "
+         "time.sleep(0.2)"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+    )
+    try:
+        leader.wait(timeout=5)
+        assert qa.mac_group_members(leader.pid), "fixture must leave a same-group descendant"
+    finally:
+        cleaned = qa.clean_mac_command_group(leader)
+    assert cleaned == {"ok": True, "survivors": [], "errors": []}
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS nested interruption contract")
+def test_macos_interrupted_wrapper_cleans_registered_nested_group(tmp_path):
+    workspace = tmp_path / "sotf"
+    workspace.mkdir()
+    (workspace / "Cargo.toml").write_text("[workspace]\n")
+    (workspace / "Cargo.lock").write_text("unchanged")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    script = tmp_path / "wrapper.py"
+    script.write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        f"sys.path.insert(0, {str(Path(qa.__file__).parent)!r})\n"
+        "import qa\n"
+        "import signal\n"
+        "signal.signal(signal.SIGTERM, qa.interrupted)\n"
+        "qa.workspace_map = lambda: {'sotf': object()}\n"
+        "qa.snapshot = lambda *args: {'revision':'abc123','dirty':False}\n"
+        "qa.commands_for = lambda *_: [(sys.executable, '-c', "
+        "'import subprocess,time,sys; subprocess.Popen([sys.executable, "
+        "\"-c\", \"import time;time.sleep(60)\"]); time.sleep(60)')]\n"
+        f"report = {{'workspaces': []}}\n"
+        "try:\n"
+        f"    qa.run_workspace('sotf', 'check', Path({str(tmp_path)!r}), "
+        f"Path({str(evidence)!r}), False, 'macos', report, "
+        f"Path({str(evidence / 'report.json')!r}))\n"
+        "except qa.GateInterrupted:\n"
+        f"    qa.write_report(Path({str(evidence / 'report.json')!r}), report)\n"
+        "    raise SystemExit(130)\n"
+    )
+    wrapper = subprocess.Popen([sys.executable, str(script)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               start_new_session=True)
+    nested_pgid = None
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            path = evidence / "report.json"
+            if path.is_file():
+                active = json.loads(path.read_text()).get("active_command", {})
+                nested_pgid = active.get("owned_pgid")
+                if nested_pgid and qa.mac_group_members(nested_pgid):
+                    break
+            time.sleep(0.05)
+        assert nested_pgid, "nested process group was never registered"
+        os.killpg(wrapper.pid, signal.SIGTERM)
+        assert wrapper.wait(timeout=20) == 130
+        interrupted_report = json.loads((evidence / "report.json").read_text())
+        assert interrupted_report["active_command"]["owned_group_cleanup"]["ok"]
+        assert not qa.mac_group_members(nested_pgid)
+    finally:
+        if wrapper.poll() is None:
+            os.killpg(wrapper.pid, signal.SIGKILL)
+            wrapper.wait(timeout=5)
+        if nested_pgid and qa.mac_group_members(nested_pgid):
+            os.killpg(nested_pgid, signal.SIGKILL)
+
+
+def test_macos_group_inspection_failure_fails_closed(monkeypatch):
+    class FinishedProcess:
+        pid = 12345
+
+        def poll(self):
+            return 0
+
+        def wait(self, timeout):
+            return 0
+
+    monkeypatch.setattr(qa, "mac_group_members", lambda _pid: (_ for _ in ()).throw(OSError("ps failed")))
+    monkeypatch.setattr(qa.os, "killpg", lambda *_: None)
+    result = qa.clean_mac_command_group(FinishedProcess())
+    assert result["ok"] is False
+    assert any("ps failed" in error for error in result["errors"])
 
 
 def test_clean_release_requirement_rejects_dirty_sources(tmp_path, monkeypatch):

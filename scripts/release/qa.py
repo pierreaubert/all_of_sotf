@@ -185,6 +185,59 @@ def stop_process_group(process: subprocess.Popen) -> None:
         process.wait()
 
 
+def mac_group_members(pgid: int) -> list[dict[str, str]]:
+    """Inspect only the process group started for this command."""
+    listing = subprocess.run(
+        ["ps", "-axo", "pid=,ppid=,pgid=,stat="],
+        capture_output=True, text=True, check=True, timeout=5,
+    )
+    members = []
+    for line in listing.stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 4 and fields[2].isdigit() and int(fields[2]) == pgid:
+            members.append(dict(zip(("pid", "ppid", "pgid", "state"), fields, strict=True)))
+    return members
+
+
+def clean_mac_command_group(process: subprocess.Popen) -> dict:
+    """Bounded cleanup of Cargo/just descendants, even after its leader exits."""
+    errors: list[str] = []
+    survivors: list[dict[str, str]] = []
+    for signum in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            survivors = mac_group_members(process.pid)
+        except Exception as error:
+            errors.append(f"owned group inspection failed: {error}")
+            survivors = [{"pid": "unknown", "pgid": str(process.pid), "state": "uninspectable"}]
+        if not survivors and not errors:
+            break
+        try:
+            os.killpg(process.pid, signum)
+        except ProcessLookupError:
+            pass
+        except OSError as error:
+            errors.append(f"owned group signal failed: {error}")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                process.poll()
+                survivors = mac_group_members(process.pid)
+            except Exception as error:
+                errors.append(f"owned group inspection/reap failed: {error}")
+                break
+            if not survivors:
+                break
+            time.sleep(0.1)
+        if not survivors:
+            break
+    try:
+        process.wait(timeout=5)
+        survivors = mac_group_members(process.pid)
+    except Exception as error:
+        errors.append(f"owned command reap failed: {error}")
+    return {"ok": not errors and not survivors, "survivors": survivors, "errors": errors}
+
+
 def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean: bool,
                   platform_name: str | None = None, report: dict | None = None,
                   report_path: Path | None = None) -> dict:
@@ -214,11 +267,24 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
             try:
                 process = subprocess.Popen(command, cwd=workspace, stdout=stream,
                                            stderr=subprocess.STDOUT, start_new_session=True)
+                interrupted = False
                 try:
-                    code = process.wait()
-                except KeyboardInterrupt:
-                    stop_process_group(process)
-                    entry.update({"status": "INTERRUPTED", "exit_code": process.returncode,
+                    entry["owned_pgid"] = process.pid
+                    if report is not None and report_path is not None:
+                        write_report(report_path, report)
+                    try:
+                        code = process.wait()
+                    except KeyboardInterrupt:
+                        interrupted = True
+                        if platform_name != "macos":
+                            stop_process_group(process)
+                        code = process.returncode if process.returncode is not None else 130
+                finally:
+                    if platform_name == "macos":
+                        entry["owned_group_cleanup"] = clean_mac_command_group(process)
+                if interrupted:
+                    entry.update({"status": "INTERRUPTED", "exit_code": 130,
+                                  "child_returncode": process.returncode,
                                   "duration_seconds": round(time.monotonic() - started, 3)})
                     result["commands"].append(entry)
                     result["error"] = "gate interrupted"
@@ -229,6 +295,9 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
         entry.update({"exit_code": code,
                       "duration_seconds": round(time.monotonic() - started, 3)})
         result["commands"].append(entry)
+        if platform_name == "macos" and not entry.get("owned_group_cleanup", {}).get("ok"):
+            result["error"] = "owned command group did not cleanly terminate"
+            return result
         if report is not None:
             report.pop("active_command", None)
         print(f"[{name}] exit {code}; log: {log}", flush=True)

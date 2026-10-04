@@ -1,0 +1,40 @@
+name: macOS non-hardware full-QA evidence
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mac-safe-qa:
+    runs-on: m4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11)'
+      - name: Checkout pinned sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify owned process-group cleanup on macOS
+        run: |
+          set -o pipefail
+          python3 -m venv .release-venv
+          .release-venv/bin/python -m pip install pytest tomlkit
+          .release-venv/bin/python -m pytest -q scripts/release/test_qa.py -k 'macos_group_cleanup_stops_descendant_after_leader_exits or macos_group_inspection_failure_fails_closed or macos_command_with_surviving_owned_group_cannot_pass or macos_interrupted_wrapper_cleans_registered_nested_group or macos_registration_failure_still_cleans_started_group' 2>&1 | tee mac-group-cleanup-tests.log
+      - name: Run non-hardware release gates
+        env:
+          CI: 'true'
+        run: python3 scripts/release/mac_safe_full_qa.py target/release-gitea/mac-safe-run
+      - name: Upload evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: mac-safe-full-qa-evidence
+          path: |
+            checkout-sources.log
+            mac-group-cleanup-tests.log
+            target/release-gitea/mac-safe-run/
+          if-no-files-found: warn
