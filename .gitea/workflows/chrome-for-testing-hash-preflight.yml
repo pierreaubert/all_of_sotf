@@ -1,0 +1,27 @@
+name: Chrome for Testing archive hash preflight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record source revision
+        run: |
+          mkdir -p chrome-hash-evidence
+          git rev-parse HEAD > chrome-hash-evidence/root-revision.txt
+          python3 --version > chrome-hash-evidence/python.txt
+      - name: Download and hash pinned official archive without executing it
+        run: python3 scripts/release/chrome_for_testing_hash_preflight.py chrome-hash-evidence
+      - name: Upload digest evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: chrome-for-testing-hash-linux
+          path: chrome-hash-evidence/
+          if-no-files-found: error
