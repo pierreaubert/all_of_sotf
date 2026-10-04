@@ -69,6 +69,39 @@ finish() {
             status=1
         fi
     fi
+    if [ -d "$work/plotly-smoke" ]; then
+        if [ -f "$work/plotly-smoke/plot.png" ]; then
+            cp "$work/plotly-smoke/plot.png" "$output/plot-at-exit.png" || status=1
+        fi
+        python3 - "$work/plotly-smoke/plot.png" "$work/private-home/bin/chromedriver" \
+            "$output/smoke-progress.json" <<'PY' || status=1
+import json
+from pathlib import Path
+import sys
+
+image, driver, report = map(Path, sys.argv[1:])
+report.write_text(json.dumps({
+    "png_exists": image.is_file(),
+    "png_bytes": image.stat().st_size if image.is_file() else None,
+    "private_chromedriver_exists": driver.is_file(),
+    "private_chromedriver_bytes": driver.stat().st_size if driver.is_file() else None,
+}, indent=2) + "\n")
+PY
+    fi
+    python3 - "$output" "$status" <<'PY' || status=1
+import json
+from pathlib import Path
+import sys
+
+output, exit_code = Path(sys.argv[1]), int(sys.argv[2])
+commands = {}
+for path in sorted(output.glob("*.status.json")):
+    commands[path.name] = json.loads(path.read_text())
+(output / "supervisor-report.json").write_text(json.dumps({
+    "script_exit_before_reporting": exit_code,
+    "commands": commands,
+}, indent=2) + "\n")
+PY
     if [ -d "$candidate/.git" ]; then
         if [ "$(git -C "$candidate" rev-parse HEAD)" != "$candidate_rev" ] ||
             [ -n "$(git -C "$candidate" status --porcelain)" ]; then
@@ -86,6 +119,7 @@ trap 'exit 143' TERM
 
 cat >"$work/supervise.py" <<'PY'
 import os
+import json
 from pathlib import Path
 import signal
 import subprocess
@@ -94,6 +128,35 @@ import time
 
 log_path, workdir, timeout_text, *command = sys.argv[1:]
 timeout_seconds = int(timeout_text)
+status_path = Path(log_path).with_suffix(".status.json")
+started = time.monotonic()
+status = {"timeout_seconds": timeout_seconds, "timed_out": False,
+          "child_exit_code": None, "cleanup_ok": None, "events": []}
+
+def group_members(pgid):
+    members = []
+    if not Path("/proc").is_dir():
+        return members
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdecimal():
+            continue
+        try:
+            raw = (entry / "stat").read_text()
+            tail = raw[raw.rfind(")") + 2:].split()
+            state, ppid, group = tail[0], int(tail[1]), int(tail[2])
+            if group == pgid:
+                members.append({"pid": int(entry.name), "ppid": ppid,
+                                "state": state, "comm": raw[raw.find("(") + 1:raw.rfind(")")]})
+        except (OSError, ValueError, IndexError):
+            continue
+    return sorted(members, key=lambda member: member["pid"])
+
+def snapshot(label, child):
+    status["events"].append({"phase": label,
+                             "elapsed_seconds": round(time.monotonic() - started, 3),
+                             "child_exit_code": child.poll(),
+                             "members": group_members(child.pid)})
+
 with Path(log_path).open("wb") as log:
     child = subprocess.Popen(
         command, cwd=workdir, stdout=log, stderr=subprocess.STDOUT, start_new_session=True
@@ -107,29 +170,39 @@ with Path(log_path).open("wb") as log:
         return True
 
     def stop_group():
+        snapshot("before_cleanup", child)
         for kind in (signal.SIGTERM, signal.SIGKILL):
             child.poll()
             if not group_alive():
+                snapshot("group_gone", child)
                 return True
             try:
                 os.killpg(child.pid, kind)
             except ProcessLookupError:
+                snapshot("group_gone", child)
                 return True
+            snapshot("after_SIGTERM" if kind == signal.SIGTERM else "after_SIGKILL", child)
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
                 child.poll()
                 if not group_alive():
+                    snapshot("group_gone", child)
                     return True
                 time.sleep(0.1)
         child.poll()
+        snapshot("cleanup_deadline", child)
         return not group_alive()
 
     def on_signal(signum, _frame):
         signal.signal(signum, signal.SIG_IGN)
-        if not stop_group():
+        status["signal"] = signum
+        status["cleanup_ok"] = stop_group()
+        if not status["cleanup_ok"]:
             log.write(b"owned process group did not terminate after SIGKILL\n")
             log.flush()
-        child.poll()
+        status["child_exit_code"] = child.poll()
+        status["elapsed_seconds"] = round(time.monotonic() - started, 3)
+        status_path.write_text(json.dumps(status, indent=2) + "\n")
         raise SystemExit(128 + signum)
 
     signal.signal(signal.SIGINT, on_signal)
@@ -137,16 +210,24 @@ with Path(log_path).open("wb") as log:
     try:
         result = child.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
+        status["timed_out"] = True
         log.write(f"owned command exceeded {timeout_seconds}s\n".encode())
         log.flush()
-        if not stop_group():
+        status["cleanup_ok"] = stop_group()
+        status["child_exit_code"] = child.poll()
+        status["elapsed_seconds"] = round(time.monotonic() - started, 3)
+        status_path.write_text(json.dumps(status, indent=2) + "\n")
+        if not status["cleanup_ok"]:
             log.write(b"owned process group did not terminate after SIGKILL\n")
             sys.exit(1)
-        child.poll()
         sys.exit(124)
-    if not stop_group():
+    status["child_exit_code"] = result
+    status["cleanup_ok"] = stop_group()
+    if not status["cleanup_ok"]:
         log.write(b"owned process group did not terminate after SIGKILL\n")
         result = 1
+    status["elapsed_seconds"] = round(time.monotonic() - started, 3)
+    status_path.write_text(json.dumps(status, indent=2) + "\n")
     sys.exit(result if result >= 0 else 128 - result)
 PY
 
