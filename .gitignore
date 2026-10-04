@@ -5,24 +5,15 @@ __pycache__
 
 node_modules
 
-/autoeq
-/gpui-toolkit
-/math-audio
-/sofa-reader
-/sotf
-/sotf-daw
-/sotf-systemwide
-/symphonia-add-ons
 /target
-/books
 /buildbot
+/books
 /index
 /docs
 
 .tokensave
 .DS_Store
 .superpowers
-/index
 .freebuff
 
 .*#

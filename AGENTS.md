@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository aggregates six sibling Rust workspaces: `sotf/`, `autoeq/`, `math-audio/`, `gpui-toolkit/`, `sofa-reader/`, and `symphonia-add-ons/`. Each workspace owns its own `Cargo.toml`, source tree, tests, docs, and in several cases a local `AGENTS.md`; read that file before editing inside the workspace. Shared maintenance code lives under `scripts/`: `scripts/align-crates/` checks dependency alignment across the six workspaces, and `scripts/quality-matrix/` generates static quality reports from `repos.json`.
+This repository aggregates nine sibling Rust workspaces: `sotf/`, `sotf-daw/`, `sotf-systemwide/`, `sotf-capture/`, `autoeq/`, `math-audio/`, `gpui-toolkit/`, `sofa-reader/`, and `symphonia-add-ons/`. Each workspace owns its own `Cargo.toml`, source tree, tests, docs, and in several cases a local `AGENTS.md`; read that file before editing inside the workspace. Shared maintenance code lives under `scripts/`: `scripts/align-crates/` checks dependency alignment and `scripts/quality-matrix/` generates static quality reports. Their shared inventory is `scripts/quality-matrix/repos.json`, also consumed by Bacon and Buildbot through `scripts/workspaces.py`.
 
 ## Build, Test, and Development Commands
 
@@ -10,6 +10,7 @@ There is no root `Cargo.toml`; run Cargo from the target workspace or pass a man
 
 - `cargo test --manifest-path sotf/Cargo.toml` runs tests for the main SOTF workspace.
 - `cargo test --manifest-path autoeq/Cargo.toml` runs tests for AutoEQ; substitute other workspace paths as needed.
+- `bacon` (repo root) watches every Rust workspace and re-runs `cargo check` in parallel; `bacon clippy-all`, `bacon test`, `bacon scripts`, or `bacon check-<workspace>` switch jobs. Config: root `bacon.toml`, helpers in `scripts/bacon/`.
 - `python3 scripts/align-crates/align_crate_versions.py` reports external crate version mismatches.
 - `python3 scripts/align-crates/align_crate_versions.py --check-sotf-duplicates` checks duplicate resolved crates in `sotf`.
 - `python3 scripts/quality-matrix/collect.py` regenerates static quality scores; `execute_quality.py` runs heavier toolchain checks.
