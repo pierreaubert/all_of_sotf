@@ -159,7 +159,7 @@ def main() -> int:
             raise RuntimeError("source preflight failed")
         names = list(workspace_map())
         for name in names:
-            command = ["cargo", "check", "--workspace", "--locked", "--all-targets", "--all-features"]
+            command = ["cargo", "check", "--workspace", "--locked", "--all-targets", "--all-features", "--keep-going"]
             result = run(name, command, output)
             report["commands"].append(result)
             (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -167,7 +167,7 @@ def main() -> int:
                 report["issues"].append(f"{name}: locked all-feature check failed")
             if not result["cleanup_ok"] or STOP:
                 raise RuntimeError(f"{name}: cleanup incomplete or interrupted")
-        command = ["cargo", "check", "--locked", "--all-targets", "--all-features",
+        command = ["cargo", "check", "--locked", "--all-targets", "--all-features", "--keep-going",
                    "--manifest-path", "crates/autoeq-gpui-examples/Cargo.toml"]
         result = run("autoeq-gpui-examples", command, output, cwd_name="autoeq")
         report["commands"].append(result)
