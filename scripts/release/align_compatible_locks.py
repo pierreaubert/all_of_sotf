@@ -45,6 +45,8 @@ WASM_FAMILY = {"wasm-bindgen", "wasm-bindgen-futures", "wasm-bindgen-macro",
 WASM_TEST_COMPANIONS = (("wasm-bindgen-test", "0.3.77", "0.3.79"),
                         ("wasm-bindgen-test-macro", "0.3.77", "0.3.79"),
                         ("wasm-bindgen-test-shared", "0.2.127", "0.2.129"))
+# wasm-bindgen-test 0.3.79 pins minicov 0.3.8; GPUI currently carries 0.3.9.
+WASM_FORCED_COMPANIONS = (("minicov", "0.3.9", "0.3.8"),)
 CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
 ACTIVE: subprocess.Popen | None = None
 
@@ -94,6 +96,15 @@ def registry_versions(lock: Path) -> dict[str, set[str]]:
         if package.get("source") == CRATES_IO:
             found[package["name"]].add(package["version"])
     return found
+
+
+def coupled_wasm_versions(lock: Path) -> dict[str, list[str]]:
+    observed = family_versions(lock)
+    versions = registry_versions(lock)
+    for package, _, _ in WASM_FORCED_COMPANIONS:
+        if package in versions:
+            observed[package] = sorted(versions[package])
+    return observed
 
 
 def package_ids(lock: Path) -> set[tuple[str, str, str]]:
@@ -147,6 +158,22 @@ def plans(specs: list[tuple[str, Path, Path]]) -> tuple[list[dict], list[dict]]:
                             "from": old, "to": target,
                             "compatibility": compatibility(old),
                             "target_origin": "reviewed crates.io exact-dependency companion",
+                            "coupled_wasm_family": True})
+    # This downgrade is forced by the reviewed wasm-bindgen-test 0.3.79
+    # manifest, not inferred from a globally higher registry version.
+    for name, _, lock in specs:
+        versions = registry_versions(lock)
+        core_target = any(item["workspace"] == name and item["package"] == "wasm-bindgen"
+                          and item["to"] == "0.2.129" for item in updates)
+        if not core_target:
+            continue
+        for package, old, target in WASM_FORCED_COMPANIONS:
+            if old not in versions.get(package, set()):
+                continue
+            updates.append({"workspace": name, "package": package,
+                            "from": old, "to": target,
+                            "compatibility": compatibility(old),
+                            "target_origin": "reviewed wasm-bindgen-test exact-dependency companion",
                             "coupled_wasm_family": True})
     updates.sort(key=lambda item: (not item["coupled_wasm_family"], item["workspace"],
                                    item["package"], version_key(item["from"])))
@@ -319,10 +346,15 @@ def main() -> int:
                            and item["coupled_wasm_family"]]
             if not family_plan:
                 continue
-            before_family = family_versions(lock)
+            before_family = coupled_wasm_versions(lock)
             selected = sorted(f"{package}@{version}"
                               for package, versions in before_family.items()
                               for version in versions)
+            forced_selected = sorted(
+                f"{item['package']}@{item['from']}" for item in family_plan
+                if item["package"] in {package for package, _, _ in WASM_FORCED_COMPANIONS}
+            )
+            selected = sorted(set(selected + forced_selected))
             targets = {package: sorted({item["to"] for item in family_plan
                                         if item["package"] == package})
                        for package in sorted({item["package"] for item in family_plan})}
@@ -336,7 +368,7 @@ def main() -> int:
                              args.timeout_per_update)
             report["commands"].append(result)
             batch["command"] = result
-            batch["after"] = family_versions(lock)
+            batch["after"] = coupled_wasm_versions(lock)
             batch["status"] = "UPDATED" if result["exit_code"] == 0 and result["cleanup_ok"] else "FAIL"
             if batch["status"] == "FAIL":
                 report["issues"].append(f"{name}: coupled Wasm unlock failed; partial lock retained")
