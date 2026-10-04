@@ -309,7 +309,8 @@ fn main() -> anyhow::Result<()> {
             "--disable-dev-shm-usage".to_string(),
         ])
         .build()?;
-    exporter.write_fig(Path::new("plot"), &plot, ImageFormat::PNG, 320, 240, 1.0)?;
+    exporter.write_fig(Path::new("plot"), &plot, ImageFormat::PNG, 320, 240, 1.0)
+        .map_err(|error| anyhow::anyhow!("{error}"))?;
     Ok(())
 }
 EOF
