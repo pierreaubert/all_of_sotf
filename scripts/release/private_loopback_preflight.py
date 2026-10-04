@@ -28,14 +28,23 @@ from scripts.release.checkout_sources import read_manifest
 
 # ALSA Pulse names channels 8..11 aux0..aux3. In the private 7.1.4 fixture,
 # those four indices represent top-front-left/right and top-rear-left/right.
-CHANNEL_POSITIONS = (
+SERVER_CHANNEL_POSITIONS = (
     "front-left", "front-right", "front-center", "lfe",
     "rear-left", "rear-right", "side-left", "side-right",
     "aux0", "aux1", "aux2", "aux3",
 )
+CLIENT_CHANNEL_POSITIONS = (
+    "front-left", "front-right", "rear-left", "rear-right",
+    "front-center", "lfe", "side-left", "side-right",
+    "aux0", "aux1", "aux2", "aux3",
+)
+# The ALSA Pulse client order differs from the private sink's order. The
+# permutation is explicit so a matching twelve-channel count cannot hide a
+# swapped center, LFE, or rear channel.
+CLIENT_TO_SERVER_INDEX = (0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 10, 11)
 LOGICAL_714_POSITIONS = (
-    "front-left", "front-right", "front-center", "lfe",
-    "rear-left", "rear-right", "side-left", "side-right",
+    "front-left", "front-right", "rear-left", "rear-right",
+    "front-center", "lfe", "side-left", "side-right",
     "top-front-left", "top-front-right", "top-rear-left", "top-rear-right",
 )
 
@@ -216,20 +225,29 @@ def tone_and_capture(env: dict[str, str], output: Path,
     )
     capture = output / "capture.raw"
     client_map: str | None = None
+    recorder_map: str | None = None
     def record_client_map(playback: subprocess.Popen[bytes]) -> None:
-        nonlocal client_map
+        nonlocal client_map, recorder_map
         attempt = 0
-        while playback.poll() is None and client_map is None:
+        while playback.poll() is None and (client_map is None or recorder_map is None):
             attempt += 1
-            log = output / f"pulse-client-map-{attempt}.log"
-            probe = owned_command(["pactl", "list", "sink-inputs"], env, log, commands, active)
-            if probe["exit_code"] != 0 or not probe["cleanup_ok"]:
-                raise RuntimeError("private sink-input channel-map probe failed")
-            for line in log.read_text(errors="replace").splitlines():
-                if line.strip().startswith("Channel Map:"):
-                    client_map = line.split(":", 1)[1].strip()
-                    break
-            if client_map is None:
+            for kind, label in (("sink-inputs", "playback"),
+                                ("source-outputs", "recorder")):
+                log = output / f"pulse-{label}-map-{attempt}.log"
+                probe = owned_command(["pactl", "list", kind], env, log, commands, active)
+                if probe["exit_code"] != 0 or not probe["cleanup_ok"]:
+                    raise RuntimeError(f"private {kind} channel-map probe failed")
+                maps = [line.split(":", 1)[1].strip()
+                        for line in log.read_text(errors="replace").splitlines()
+                        if line.strip().startswith("Channel Map:")]
+                if len(maps) > 1:
+                    raise RuntimeError(f"private {kind} map was not unique")
+                if maps:
+                    if label == "playback":
+                        client_map = maps[0]
+                    else:
+                        recorder_map = maps[0]
+            if client_map is None or recorder_map is None:
                 time.sleep(0.05)
     recorder: subprocess.Popen[bytes] | None = None
     record: dict = {"argv": ["arecord", "private default 12ch"], "exit_code": None,
@@ -298,15 +316,29 @@ def tone_and_capture(env: dict[str, str], output: Path,
                               "pass": matched >= 500 and wrong <= matched * 0.15})
     server_positions = channel_positions(server_map)
     client_positions = channel_positions(client_map)
+    recorder_positions = channel_positions(recorder_map)
+    permutation_matches = (
+        len(set(server_positions)) == len(set(client_positions)) == channels
+        and all(server_positions[server_index] == client_positions[client_index]
+                for client_index, server_index in enumerate(CLIENT_TO_SERVER_INDEX))
+    )
     return {"frames": frame_count, "capture_window_start": start,
             "server_channel_map": server_map, "client_channel_map": client_map,
-            "expected_private_channel_map": list(CHANNEL_POSITIONS),
-            "logical_714_index_positions": list(LOGICAL_714_POSITIONS),
-            "server_map_matches_expected": server_positions == CHANNEL_POSITIONS,
-            "client_map_matches_expected": client_positions == CHANNEL_POSITIONS,
+            "recorder_channel_map": recorder_map,
+            "expected_server_channel_map": list(SERVER_CHANNEL_POSITIONS),
+            "expected_client_channel_map": list(CLIENT_CHANNEL_POSITIONS),
+            "client_to_server_index": list(CLIENT_TO_SERVER_INDEX),
+            "logical_714_client_index_positions": list(LOGICAL_714_POSITIONS),
+            "server_map_matches_expected": server_positions == SERVER_CHANNEL_POSITIONS,
+            "client_map_matches_expected": client_positions == CLIENT_CHANNEL_POSITIONS,
+            "recorder_map_matches_expected": recorder_positions == CLIENT_CHANNEL_POSITIONS,
+            "map_permutation_matches": permutation_matches,
+            "recorder_to_server_index": list(CLIENT_TO_SERVER_INDEX),
             "channel_proof": channel_proof,
-            "all_twelve_channels_proved": server_positions == CHANNEL_POSITIONS
-            and client_positions == CHANNEL_POSITIONS and frame_count >= rate * 2
+            "all_twelve_channels_proved": server_positions == SERVER_CHANNEL_POSITIONS
+            and client_positions == CLIENT_CHANNEL_POSITIONS
+            and recorder_positions == CLIENT_CHANNEL_POSITIONS and permutation_matches
+            and frame_count >= rate * 2
             and all(item["pass"] for item in channel_proof)}
 
 
