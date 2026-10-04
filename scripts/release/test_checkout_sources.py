@@ -13,7 +13,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent))
 from checkout_sources import (checkout, clone_env, git, gitlink_revision,
-                              prepare_destinations, read_manifest, root_layout_status)
+                              preflight_root, prepare_destinations, read_manifest,
+                              root_layout_status)
 from workspaces import workspace_names
 
 
@@ -41,10 +42,44 @@ class CheckoutSourcesTests(unittest.TestCase):
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
             revisions = {name: "a" * 40 for name in workspace_names()}
+            for name, revision in revisions.items():
+                subprocess.run(["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
+                                f"160000,{revision},{name}"], check=True)
+                (root / name).mkdir()
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=CI", "-c",
+                            "user.email=ci@example.invalid", "commit", "-qm", "fixture"], check=True)
             with patch("checkout_sources.git", side_effect=["", "", "", "b" * 40]):
                 with self.assertRaisesRegex(ValueError, "checked out"):
                     checkout(root, "http://gitea.example:3001", "pierre", revisions)
-            self.assertEqual(list(root.iterdir()), [root / ".git"])
+            self.assertFalse(any(root.glob(".autoeq-*")))
+
+    def test_preflight_accepts_only_absent_pinned_gitlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            revisions = {name: "a" * 40 for name in workspace_names()}
+            for name, revision in revisions.items():
+                subprocess.run(["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
+                                f"160000,{revision},{name}"], check=True)
+                (root / name).mkdir()
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=CI", "-c",
+                            "user.email=ci@example.invalid", "commit", "-qm", "fixture"], check=True)
+            preflight_root(root, revisions)
+            (root / workspace_names()[0]).rmdir()
+            preflight_root(root, revisions)
+            (root / "unexpected.txt").write_text("dirty")
+            with self.assertRaisesRegex(ValueError, "dirty"):
+                preflight_root(root, revisions)
+
+    def test_preflight_accepts_clean_legacy_root_before_clone(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            revisions = {name: "a" * 40 for name in workspace_names()}
+            preflight_root(root, revisions)
+            (root / "unexpected.txt").write_text("dirty")
+            with self.assertRaisesRegex(ValueError, "dirty"):
+                preflight_root(root, revisions)
 
     def test_matching_gitlink_allows_only_empty_checkout_placeholder(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -61,7 +96,8 @@ class CheckoutSourcesTests(unittest.TestCase):
             prepare_destinations(root, {item: revision for item in workspace_names()})
             self.assertFalse((root / name).exists())
             self.assertEqual(subprocess.check_output(
-                ["git", "-C", str(root), "status", "--porcelain"], text=True), "")
+                ["git", "-C", str(root), "status", "--porcelain"], text=True),
+                f" D {name}\n")
 
     def test_gitlink_pin_and_nonempty_placeholder_fail_before_any_removal(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

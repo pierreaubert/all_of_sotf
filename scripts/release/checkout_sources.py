@@ -73,7 +73,9 @@ def git(*args: str, env: dict[str, str] | None = None) -> str:
                 stderr = stderr.replace(secret, "[redacted]")
         tail = "\n".join(stderr.splitlines()[-5:])
         raise RuntimeError(f"git {args[0]} exited {result.returncode}: {tail}")
-    return result.stdout.strip()
+    # Preserve the two-column porcelain prefix: a leading space means an
+    # unstaged change and is significant for gitlink preflight checks.
+    return result.stdout.rstrip("\n")
 
 
 def gitlink_revision(root: Path, name: str) -> str | None:
@@ -152,10 +154,29 @@ def prepare_destinations(root: Path, revisions: dict[str, str]) -> None:
         destination.rmdir()
 
 
-def checkout(root: Path, server: str, owner: str, revisions: dict[str, str]) -> None:
-    prepare_destinations(root, revisions)
-    if git("-C", str(root), "status", "--porcelain", "--untracked-files=normal"):
+def preflight_root(root: Path, revisions: dict[str, str]) -> None:
+    # Git reports an absent tracked gitlink as " D name". It also reports that
+    # status after we remove checkout's empty placeholder directory below.
+    # Accept only that exact pre-clone absence for a pinned gitlink.
+    preflight = root_layout_status(root, revisions)
+    allowed_absent = {
+        f" D {name}" for name in revisions
+        if gitlink_revision(root, name) == revisions[name]
+        and not (root / name).exists()
+    }
+    legacy_absent = {
+        name for name in revisions
+        if gitlink_revision(root, name) is None
+        and not (root / name).exists()
+        and not (root / name).is_symlink()
+    }
+    if set(preflight["missing"]) - legacy_absent or set(preflight["unexpected"]) - allowed_absent:
         raise ValueError("root checkout is dirty before sibling materialization")
+
+
+def checkout(root: Path, server: str, owner: str, revisions: dict[str, str]) -> None:
+    preflight_root(root, revisions)
+    prepare_destinations(root, revisions)
     env = clone_env(server, owner)
     for name in workspace_names():
         revision = revisions[name]

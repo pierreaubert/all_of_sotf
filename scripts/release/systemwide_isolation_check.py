@@ -144,7 +144,7 @@ def main() -> int:
     ipc_names = [
         "second_daemon_cannot_take_ownership_of_a_live_runtime",
         "daemon_shutdown_drains_clients_and_allows_immediate_restart",
-        "systemwide_lab_scenario_matrix_over_unix_socket",
+        "systemwide_lab_scenario_matrix_over_ipc",
         "systemwide_lab_restarts_with_a_fresh_coherent_snapshot",
     ]
     if platform == "macos":
