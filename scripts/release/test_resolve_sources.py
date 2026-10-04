@@ -179,6 +179,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 def test_missing_nested_demo_lock_fails_autoeq_resolution(tmp_path: Path) -> None:
     root, output = workspace(tmp_path)
     (root / "sotf").rename(root / "autoeq")
+    (root / "autoeq" / "Cargo.lock").write_text("version = 3\n")
 
     def fake_cargo(_command, *, cwd, stdout, stderr, start_new_session):
         assert cwd == root / "autoeq" and start_new_session
@@ -197,6 +198,7 @@ def test_missing_nested_demo_lock_fails_autoeq_resolution(tmp_path: Path) -> Non
 def test_nested_demo_resolution_timeout_fails_and_cleans_group(tmp_path: Path) -> None:
     root, output = workspace(tmp_path)
     (root / "sotf").rename(root / "autoeq")
+    (root / "autoeq" / "Cargo.lock").write_text("version = 3\n")
     nested = root / "autoeq" / "crates" / "autoeq-gpui-examples"
     nested.mkdir(parents=True)
     (nested / "Cargo.toml").write_text("[package]\nname='autoeq-gpui-examples'\nversion='0.1.0'\n")
