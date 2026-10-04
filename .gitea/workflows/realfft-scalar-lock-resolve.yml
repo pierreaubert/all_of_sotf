@@ -1,0 +1,55 @@
+name: Resolve AUD132 realfft diagnostic lock
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      CI: 'true'
+      DISPOSABLE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Rust resolver
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" -eq 0
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl git python3
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Resolve source-only realfft fork lock
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/realfft-scalar-lock
+          python3 -m unittest -v scripts.release.test_realfft_lock_resolve \
+            > target/release-gitea/realfft-scalar-lock/preflight.log 2>&1
+          grep -Eq '^Ran 2 tests in ' target/release-gitea/realfft-scalar-lock/preflight.log
+          grep -Eq '^OK$' target/release-gitea/realfft-scalar-lock/preflight.log
+          ! grep -Eq 'skipped|expected failure|unexpected success' \
+            target/release-gitea/realfft-scalar-lock/preflight.log
+      - name: Generate exact fork lock
+        run: python3 scripts/release/realfft_lock_resolve.py target/release-gitea/realfft-scalar-lock
+      - name: Retain resolver report and exact lock bytes
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: realfft-scalar-lock-linux
+          path: target/release-gitea/realfft-scalar-lock/
+          if-no-files-found: error
