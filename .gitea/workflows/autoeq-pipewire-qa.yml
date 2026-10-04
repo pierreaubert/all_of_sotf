@@ -1,0 +1,56 @@
+name: AutoEQ full QA with native PipeWire image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: x86:linux:host
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Build native x86 PipeWire QA base from resolved Rust image
+        run: |
+          set -euo pipefail
+          mkdir -p autoeq-pipewire-evidence
+          exec > >(tee autoeq-pipewire-evidence/image-build.log) 2>&1
+          base_tag=rust:1.99.0-bookworm
+          docker info --format '{{.ServerVersion}} {{.OSType}}/{{.Architecture}}'
+          docker pull --platform linux/amd64 "$base_tag"
+          base_digest=$(docker image inspect "$base_tag" --format '{{index .RepoDigests 0}}')
+          test -n "$base_digest"
+          printf '%s\n' "$base_digest" > autoeq-pipewire-evidence/rust-base-digest.txt
+          docker build --platform linux/amd64 \
+            --build-arg RUST_BASE_IMAGE="$base_digest" \
+            --iidfile autoeq-pipewire-evidence/base-image-id.txt \
+            -f scripts/release/Dockerfile.autoeq-pipewire-base scripts/release
+          image_id=$(cat autoeq-pipewire-evidence/base-image-id.txt)
+          docker image inspect "$image_id" > autoeq-pipewire-evidence/base-image.json
+          test "$(docker image inspect "$image_id" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          docker run --rm --platform linux/amd64 "$image_id" rustc --version
+          docker run --rm --platform linux/amd64 "$image_id" bash -c 'command -v clang mold cargo rustup pipewire pw-cli'
+      - name: Run pinned AutoEQ full QA
+        run: |
+          set -euo pipefail
+          image_id=$(cat autoeq-pipewire-evidence/base-image-id.txt)
+          AUTOEQ_PIPEWIRE_BASE_IMAGE="$image_id" AUTOEQ_PIPEWIRE_BASE_READY=1 \
+            python3 scripts/release/qa.py qa --workspace autoeq --platform linux --require-clean --output autoeq-pipewire-evidence/qa
+      - name: Upload source, image, and QA evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: autoeq-pipewire-qa-linux
+          path: |
+            checkout-sources.log
+            autoeq-pipewire-evidence/
+          if-no-files-found: warn

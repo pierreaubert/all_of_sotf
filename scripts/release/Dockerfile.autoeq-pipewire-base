@@ -1,0 +1,11 @@
+# The workflow resolves this Rust 1.99 image to its registry digest before build.
+ARG RUST_BASE_IMAGE
+FROM ${RUST_BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential clang mold cmake ninja-build pkg-config \
+      libssl-dev libsqlite3-dev libasound2-dev libclang-dev \
+      pipewire pipewire-bin && \
+    rm -rf /var/lib/apt/lists/*

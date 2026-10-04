@@ -1,0 +1,41 @@
+name: Release runner readiness
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Probe macOS QA prerequisites without starting services
+        run: |
+          set -o pipefail
+          bash scripts/release/runner_readiness.sh macos 2>&1 | tee runner-readiness-macos.log
+      - name: Upload macOS probe evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: runner-readiness-macos
+          path: runner-readiness-macos.log
+          if-no-files-found: error
+
+  linux:
+    runs-on: x86:linux:host
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Probe Linux QA prerequisites without starting services
+        run: |
+          set -o pipefail
+          bash scripts/release/runner_readiness.sh linux 2>&1 | tee runner-readiness-linux.log
+      - name: Upload Linux probe evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: runner-readiness-linux
+          path: runner-readiness-linux.log
+          if-no-files-found: error

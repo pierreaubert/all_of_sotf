@@ -1,0 +1,35 @@
+name: Propose compatible release lock alignment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  propose:
+    runs-on: x86:linux:host
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 and Cargo
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+          cargo --version
+          rustc --version
+      - name: Checkout exact release sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Propose compatible lock updates
+        run: python3 scripts/release/align_compatible_locks.py --output release-compatible-locks
+      - name: Upload proposed locks and command logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: compatible-lock-alignment
+          if-no-files-found: warn
+          path: |
+            checkout-sources.log
+            release-compatible-locks/

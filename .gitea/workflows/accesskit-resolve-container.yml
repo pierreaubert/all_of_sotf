@@ -1,0 +1,92 @@
+name: Resolve pinned release candidate in disposable container
+
+on:
+  workflow_dispatch:
+    inputs:
+      root_sha:
+        description: Reviewed aggregate release commit to resolve (40 lowercase hex characters)
+        required: true
+        type: string
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      RUSTUP_TOOLCHAIN: 1.99.0
+      PINNED_ROOT: ${{ inputs.root_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require exact reviewed source snapshot
+        run: |
+          set -euo pipefail
+          if [[ ! "$PINNED_ROOT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'root_sha must be a full lowercase Git commit SHA'
+            exit 1
+          fi
+          git cat-file -e "$PINNED_ROOT^{commit}"
+          if ! git merge-base --is-ancestor "$PINNED_ROOT" HEAD; then
+            echo 'root_sha must be an ancestor of the dispatched release ref'
+            exit 1
+          fi
+          git checkout --detach "$PINNED_ROOT"
+          test "$(git rev-parse HEAD)" = "$PINNED_ROOT"
+          printf '%s\n' "$PINNED_ROOT" > pinned-root.txt
+      - name: Prepare disposable resolver toolchain
+        run: |
+          set -euo pipefail
+          mkdir -p resolver-prerequisite
+          exec > >(tee resolver-prerequisite/toolchain.log) 2>&1
+          uname -a
+          id
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'Resolver setup requires the disposable root-owned Gitea container; refusing host changes'
+            exit 1
+          fi
+          python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+          command -v git
+          command -v curl
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          rustc --version
+          cargo --version
+          if [ "$(rustc --version | awk '{print $2}')" != '1.99.0' ]; then
+            echo 'Resolver Rust toolchain differs from the pinned release version'
+            exit 1
+          fi
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Resolve sibling lockfiles
+        run: |
+          export PATH="$CARGO_HOME/bin:$PATH"
+          python3 scripts/release/resolve_sources.py --output release-resolution
+      - name: Audit proposed dependency graph
+        if: always()
+        run: python3 scripts/release/dependency_graph.py --output dependency-graph.json
+      - name: Upload proposed lockfiles and metadata
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aggregate-lock-resolution
+          path: |
+            pinned-root.txt
+            checkout-sources.log
+            dependency-graph.json
+            resolver-prerequisite/
+            release-resolution/
+          if-no-files-found: warn

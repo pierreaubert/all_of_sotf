@@ -1,0 +1,32 @@
+name: AutoEQ quality gate failure diagnostics
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: x86:linux:host
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Run QA unit tests and both exact failing recipes
+        run: python3 scripts/release/autoeq_qa_diagnostics.py autoeq-qa-diagnostics
+      - name: Upload complete diagnostics and source evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: autoeq-qa-failure-diagnostics
+          path: |
+            checkout-sources.log
+            autoeq-qa-diagnostics/
+          if-no-files-found: warn

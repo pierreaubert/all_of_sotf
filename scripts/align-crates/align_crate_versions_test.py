@@ -10,15 +10,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from align_crate_versions import (
     DEFAULT_RISKY_PACKAGES,
+    align_versions,
     build_change_map,
     compatibility_key,
     collect_sotf_duplicates,
     collect_versions,
+    find_cargo_tomls,
     find_conflicts,
     load_allowlist,
     normalize_version,
     package_info,
     pick_target,
+    report_change_plan,
     save_allowlist,
 )
 
@@ -126,6 +129,38 @@ def test_worktrees_and_3rdparties_are_ignored(tmp_path):
     ]
 
 
+def test_inventory_covers_split_workspaces(tmp_path):
+    for name in ("sotf-daw", "sotf-capture", "sotf-systemwide"):
+        root = tmp_path / name
+        root.mkdir()
+        (root / "Cargo.toml").write_text('[dependencies]\nserde = "1"\n')
+    entries = collect_versions(tmp_path)["serde"]
+    assert {path.parent.name for path, *_ in entries} == {
+        "sotf-daw", "sotf-capture", "sotf-systemwide"
+    }
+
+
+def test_discovery_prunes_snapshots_worktrees_and_symlinks(tmp_path):
+    root = tmp_path / "sotf"
+    root.mkdir()
+    active = root / "Cargo.toml"
+    active.write_text("[workspace]\n")
+    for directory in (
+        root / ".muse" / "worktrees" / "old",
+        root / "audit" / "artifacts" / "selected-source",
+        root / "target-static" / "generated",
+        root / "nested-checkout",
+    ):
+        directory.mkdir(parents=True)
+        (directory / "Cargo.toml").write_text("not even valid TOML")
+    (root / "nested-checkout" / ".git").write_text("gitdir: elsewhere")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "Cargo.toml").write_text("invalid TOML")
+    (root / "linked").symlink_to(outside, target_is_directory=True)
+    assert find_cargo_tomls(tmp_path) == [active]
+
+
 def test_mixed_sources_are_skipped(tmp_path):
     (tmp_path / "sotf").mkdir()
     (tmp_path / "autoeq").mkdir()
@@ -178,6 +213,73 @@ def test_change_map_aligns_only_semver_compatible_groups_by_default(tmp_path):
     }
 
 
+def test_target_dependencies_include_aliases_and_ordinary_tables(tmp_path):
+    for name in ("sotf", "autoeq"):
+        (tmp_path / name).mkdir()
+    source = tmp_path / "sotf" / "Cargo.toml"
+    source.write_text(
+        '[target.\'cfg(target_os = "macos")\'.dependencies]\n'
+        'renamed = { package = "serde", version = "1.0.1" }\n'
+        '[target.\'cfg(target_os = "linux")\'.build-dependencies.serde]\n'
+        'version = "1.0.1"\n'
+        '[target.\'cfg(target_os = "windows")\'.dev-dependencies]\n'
+        'serde = "1.0.1"\n'
+    )
+    (tmp_path / "autoeq" / "Cargo.toml").write_text(
+        '[dependencies]\nserde = "1.0.2"\n'
+    )
+    entries = collect_versions(tmp_path)["serde"]
+    assert {section for path, section, *_ in entries if path == source} == {
+        'target.cfg(target_os = "macos").dependencies',
+        'target.cfg(target_os = "linux").build-dependencies',
+        'target.cfg(target_os = "windows").dev-dependencies',
+    }
+    conflicts, _ = find_conflicts(collect_versions(tmp_path))
+    assert build_change_map(conflicts, risky_packages=set())[source] == {
+        section: {"serde": "1.0.2"}
+        for section in (
+            'target.cfg(target_os = "macos").dependencies',
+            'target.cfg(target_os = "linux").build-dependencies',
+            'target.cfg(target_os = "windows").dev-dependencies',
+        )
+    }
+    assert align_versions(tmp_path, conflicts, risky_packages=set()) == 0
+    assert {
+        version for path, _, version, _ in collect_versions(tmp_path)["serde"]
+        if path == source
+    } == {"1.0.2"}
+    assert 'renamed = { package = "serde", version = "1.0.2" }' in source.read_text()
+
+
+def test_skipped_mismatches_reported_without_safe_changes(tmp_path, capsys):
+    path = tmp_path / "sotf" / "Cargo.toml"
+    path.parent.mkdir()
+    path.write_text(
+        '[dependencies]\n'
+        'cpal = "0.15"\nthiserror = "1"\n'
+        'mixed = { git = "https://example.com/mixed", version = "1" }\n'
+    )
+    other = tmp_path / "autoeq" / "Cargo.toml"
+    other.parent.mkdir()
+    other.write_text(
+        '[dependencies]\ncpal = "0.16"\nthiserror = "2"\nmixed = "2"\n'
+    )
+    conflicts, skipped = find_conflicts(collect_versions(tmp_path))
+    assert report_change_plan(tmp_path, conflicts, skipped, DEFAULT_RISKY_PACKAGES, False) == 0
+    output = capsys.readouterr().out
+    assert "mixed sources" in output
+    assert "risky package" in output and "cpal: 0.15, 0.16" in output
+    assert "Left major-version splits unchanged" in output
+    assert "thiserror: 1, 2" in output
+    assert "No safe version mismatches to fix" in output
+
+    assert align_versions(tmp_path, conflicts, skipped=skipped) == 0
+    apply_output = capsys.readouterr().out
+    assert "mixed sources" in apply_output
+    assert "risky package" in apply_output
+    assert "Left major-version splits unchanged" in apply_output
+
+
 def _metadata_result(metadata: dict):
     class Result:
         returncode = 0
@@ -214,10 +316,10 @@ def test_workspace_members_are_excluded_from_duplicates(tmp_path, monkeypatch):
     (tmp_path / "sotf" / "Cargo.toml").write_text("[workspace]\nmembers = []\n")
 
     metadata = {
-        "workspace_members": ["sotf-engine 1.0.0 (path+file:///x)"],
+        "workspace_members": ["path+file:///x#sotf-engine@1.0.29"],
         "packages": [
-            {"name": "sotf-engine", "version": "1.0.29", "id": "sotf-engine 1.0.29"},
-            {"name": "sotf-engine", "version": "1.0.30", "id": "sotf-engine 1.0.30"},
+            {"name": "sotf-engine", "version": "1.0.29", "id": "path+file:///x#sotf-engine@1.0.29"},
+            {"name": "sotf-engine", "version": "1.0.30", "id": "registry+https://example.com#sotf-engine@1.0.30"},
         ],
     }
 
@@ -228,6 +330,20 @@ def test_workspace_members_are_excluded_from_duplicates(tmp_path, monkeypatch):
     duplicates, members = collect_sotf_duplicates(tmp_path)
     assert "sotf-engine" in members
     assert "sotf-engine" not in duplicates
+
+
+def test_duplicate_check_keeps_lock_and_workspace_config(tmp_path, monkeypatch):
+    manifest = tmp_path / "sotf" / "Cargo.toml"
+    manifest.parent.mkdir()
+    manifest.write_text("[workspace]\n")
+
+    def metadata(cmd, **kwargs):
+        assert "--locked" in cmd
+        assert kwargs["cwd"] == manifest.parent
+        return _metadata_result({"packages": [], "workspace_members": []})
+
+    monkeypatch.setattr("align_crate_versions.subprocess.run", metadata)
+    assert collect_sotf_duplicates(tmp_path) == ({}, set())
 
 
 def test_allowlist_roundtrip(tmp_path):

@@ -1,0 +1,103 @@
+name: Focused Arrow runtime check
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    timeout-minutes: 180
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Test Arrow-backed runtime and all features
+        run: bash scripts/release/arrow_runtime_check.sh macos arrow-runtime-evidence-macos
+      - name: Upload macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: arrow-runtime-macos
+          path: |
+            checkout-sources.log
+            arrow-runtime-evidence-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Linux build environment
+        run: |
+          set -euo pipefail
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'Arrow setup requires a disposable root-owned Gitea container' >&2
+            exit 1
+          fi
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang cmake ninja-build pkg-config \
+            python3 python3-dev libssl-dev libasound2-dev libclang-dev \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libfontconfig1-dev \
+            libfreetype6-dev libwayland-dev libx11-xcb-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libxcb1-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxrandr-dev libxi-dev \
+            libxcursor-dev libegl1-mesa-dev libgl1-mesa-dev
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          if [ "$(rustc --version | awk '{print $2}')" != '1.99.0' ]; then
+            echo 'Rust toolchain differs from pinned release QA version' >&2
+            exit 1
+          fi
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Test Arrow-backed runtime and all features
+        run: bash scripts/release/arrow_runtime_check.sh linux arrow-runtime-evidence-linux
+      - name: Upload Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: arrow-runtime-linux
+          path: |
+            checkout-sources.log
+            arrow-runtime-evidence-linux/
+          if-no-files-found: warn

@@ -1,6 +1,15 @@
 [submodule "sotf"]
 	path = sotf
 	url = https://github.com/pierreaubert/sotf
+[submodule "sotf-systemwide"]
+	path = sotf-systemwide
+	url = https://github.com/pierreaubert/sotf-systemwide
+[submodule "sotf-daw"]
+	path = sotf-daw
+	url = https://github.com/pierreaubert/sotf-daw
+[submodule "sotf-capture"]
+	path = sotf-capture
+	url = https://github.com/pierreaubert/sotf-capture
 [submodule "autoeq"]
 	path = autoeq
 	url = https://github.com/pierreaubert/autoeq
@@ -16,3 +25,6 @@
 [submodule "symphonia-add-ons"]
 	path = symphonia-add-ons
 	url = https://github.com/pierreaubert/symphonia-add-ons
+[submodule "ms-rust-skill"]
+	path = skills/ms-rust-skill
+	url = https://gitlab.com/lx-industries/ms-rust-skill.git

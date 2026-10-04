@@ -1,0 +1,163 @@
+name: Aggregate release QA
+
+on:
+  push:
+    branches:
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: Release gate
+        type: choice
+        options: [metadata, check, tests, qa, resolve]
+        default: check
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos')
+    runs-on: m4
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Validate macOS release sources
+        env:
+          RELEASE_PHASE: ${{ github.event.inputs.phase || 'metadata' }}
+        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform macos --require-clean --output release-evidence-macos
+      - name: Upload macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aggregate-qa-macos
+          path: |
+            checkout-sources.log
+            release-evidence-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux')
+    runs-on: x86:linux:host
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Validate Linux release sources
+        env:
+          RELEASE_PHASE: ${{ github.event.inputs.phase || 'metadata' }}
+        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform linux --require-clean --output release-evidence-linux
+      - name: Upload Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aggregate-qa-linux
+          path: |
+            checkout-sources.log
+            release-evidence-linux/
+          if-no-files-found: warn
+
+  scripts:
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve'
+    runs-on: x86:linux:host
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Validate release maintenance scripts
+        run: |
+          set -o pipefail
+          python3 -m venv .release-venv
+          .release-venv/bin/python -m pip install pytest tomlkit
+          PATH="$PWD/.release-venv/bin:$PATH" bash scripts/bacon/scripts-check.sh 2>&1 | tee scripts-qa.log
+      - name: Upload script QA evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aggregate-scripts-qa
+          path: scripts-qa.log
+          if-no-files-found: warn
+
+  dependency-graph:
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve'
+    runs-on: x86:linux:host
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Audit dependency graph
+        run: python3 scripts/release/dependency_graph.py --output dependency-graph.json
+      - name: Upload dependency graph evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aggregate-dependency-graph
+          path: |
+            checkout-sources.log
+            dependency-graph.json
+          if-no-files-found: warn
+
+  resolve:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.phase == 'resolve'
+    runs-on: x86:linux:host
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Resolve sibling lockfiles
+        run: python3 scripts/release/resolve_sources.py --output release-resolution
+      - name: Audit proposed dependency graph
+        if: always()
+        run: python3 scripts/release/dependency_graph.py --output dependency-graph.json
+      - name: Upload proposed lockfiles and metadata
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aggregate-lock-resolution
+          path: |
+            checkout-sources.log
+            dependency-graph.json
+            release-resolution/
+          if-no-files-found: warn

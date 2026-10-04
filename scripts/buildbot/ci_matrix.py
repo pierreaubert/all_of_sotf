@@ -5,7 +5,18 @@ the standard library before Buildbot loads ``master.cfg``.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from pathlib import Path
+import sys
+from typing import Dict, Optional, Tuple
+
+_SCRIPTS_DIR = next(
+    candidate
+    for parent in Path(__file__).resolve().parents
+    for candidate in (parent, parent / "scripts")
+    if (candidate / "workspaces.py").is_file()
+)
+sys.path.insert(0, str(_SCRIPTS_DIR))
+from workspaces import workspace_names
 
 
 @dataclass(frozen=True)
@@ -13,7 +24,7 @@ class Workspace:
     name: str
     branch: str
     test_recipes: Tuple[str, ...]
-    qa_recipe: str = "qa"
+    qa_recipe: Optional[str] = "qa"
 
 
 @dataclass(frozen=True)
@@ -35,14 +46,36 @@ class TargetBuild:
     nightly: bool = True
 
 
-WORKSPACES: Tuple[Workspace, ...] = (
+_RECIPE_WORKSPACES = (
     Workspace("gpui-toolkit", "main", ("check", "lint", "ntest")),
     # math-audio deliberately has no `check` recipe; clippy and nextest both
     # compile the complete supported surface.
     Workspace("math-audio", "main", ("lint", "ntest")),
     Workspace("autoeq", "main", ("check", "lint", "ntest")),
     Workspace("sotf", "master", ("check", "lint", "ntest")),
+    Workspace("sotf-daw", "main", ("check", "lint", "ntest")),
+    Workspace("sotf-systemwide", "main", ("check", "lint", "test")),
+    Workspace("sofa-reader", "main", ("all",), "all"),
 )
+_RECIPE_BY_NAME = {workspace.name: workspace for workspace in _RECIPE_WORKSPACES}
+WORKSPACES: Tuple[Workspace, ...] = tuple(
+    _RECIPE_BY_NAME.get(name, Workspace(name, "main", (), None))
+    for name in workspace_names()
+)
+
+
+def gate_commands(workspace: Workspace, qa: bool = False) -> Tuple[Tuple[str, ...], ...]:
+    """Use owning recipes, or complete Cargo gates for roots without recipes."""
+    recipes = (workspace.qa_recipe,) if qa and workspace.qa_recipe else workspace.test_recipes
+    if recipes:
+        return tuple(("just", recipe) for recipe in recipes)
+    return (
+        ("cargo", "fmt", "--all", "--", "--check"),
+        ("cargo", "check", "--workspace", "--all-targets", "--locked"),
+        ("cargo", "clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"),
+        ("cargo", "test", "--workspace", "--all-targets", "--locked"),
+        ("cargo", "test", "--workspace", "--doc", "--locked"),
+    )
 
 DESKTOP_PLATFORMS: Tuple[Platform, ...] = (
     Platform("macos", "macos-local", "/Volumes/home_ext1/src_pierre/all_of_sotf", "python3"),

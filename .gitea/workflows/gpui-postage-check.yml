@@ -1,0 +1,67 @@
+name: GPUI postage and pollster check
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Test GPUI and check all targets
+        run: bash scripts/release/gpui_postage_check.sh macos gpui-postage-evidence-macos
+      - name: Upload GPUI macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gpui-postage-macos
+          path: |
+            checkout-sources.log
+            gpui-postage-evidence-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: x86:linux:host
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Test GPUI and check all targets
+        run: bash scripts/release/gpui_postage_check.sh linux gpui-postage-evidence-linux
+      - name: Upload GPUI Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gpui-postage-linux
+          path: |
+            checkout-sources.log
+            gpui-postage-evidence-linux/
+          if-no-files-found: warn
