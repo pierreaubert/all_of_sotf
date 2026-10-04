@@ -332,17 +332,22 @@ def main() -> int:
             os.chown(startup, user.pw_uid, user.pw_gid)
             with (output / "pulseaudio.log").open("wb") as log:
                 pulse = subprocess.Popen(
-                    ["runuser", "-u", "sotfqa", "--", "pulseaudio", "-n", "--daemonize=no", "--file=" + str(startup)],
+                    ["runuser", "-u", "sotfqa", "--", "pulseaudio", "-n", "--daemonize=no",
+                     "--exit-idle-time=-1", "--file=" + str(startup)],
                     env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
                 )
                 active.append({"argv": ["runuser", "private pulseaudio"],
                                "pgid": pulse.pid, "cleanup_ok": None})
                 write_active(output, active)
+                next_heartbeat = 0.0
                 while not socket.exists():
                     if pulse.poll() is not None:
+                        report["pulse_exit_code"] = pulse.returncode
                         raise RuntimeError("private PulseAudio exited before socket readiness")
-                    print(f"private PulseAudio readiness heartbeat: pid={pulse.pid}", flush=True)
-                    time.sleep(30)
+                    if time.monotonic() >= next_heartbeat:
+                        print(f"private PulseAudio readiness heartbeat: pid={pulse.pid}", flush=True)
+                        next_heartbeat = time.monotonic() + 30
+                    time.sleep(1)
                 for label, argv in (
                     ("pulse-info", ["pactl", "info"]),
                     ("pulse-sinks", ["pactl", "list", "sinks"]),
