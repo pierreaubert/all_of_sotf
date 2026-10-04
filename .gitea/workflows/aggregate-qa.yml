@@ -37,7 +37,7 @@ jobs:
       - name: Validate macOS release sources
         env:
           RELEASE_PHASE: ${{ github.event.inputs.phase || 'metadata' }}
-        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform macos --require-clean --output release-evidence-macos
+        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform macos --require-clean --output target/release-gitea/aggregate-qa-macos
       - name: Upload macOS evidence
         if: always()
         uses: actions/upload-artifact@v3
@@ -45,7 +45,7 @@ jobs:
           name: aggregate-qa-macos
           path: |
             checkout-sources.log
-            release-evidence-macos/
+            target/release-gitea/aggregate-qa-macos/
           if-no-files-found: warn
 
   linux:
@@ -67,7 +67,7 @@ jobs:
       - name: Validate Linux release sources
         env:
           RELEASE_PHASE: ${{ github.event.inputs.phase || 'metadata' }}
-        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform linux --require-clean --output release-evidence-linux
+        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform linux --require-clean --output target/release-gitea/aggregate-qa-linux
       - name: Upload Linux evidence
         if: always()
         uses: actions/upload-artifact@v3
@@ -75,7 +75,7 @@ jobs:
           name: aggregate-qa-linux
           path: |
             checkout-sources.log
-            release-evidence-linux/
+            target/release-gitea/aggregate-qa-linux/
           if-no-files-found: warn
 
   scripts:
@@ -88,6 +88,8 @@ jobs:
           persist-credentials: false
       - name: Require Python 3.11 or newer
         run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Parse root Justfile without running recipes
+        run: just --list
       - name: Validate release maintenance scripts
         run: |
           set -o pipefail
