@@ -16,7 +16,10 @@ import time
 from checkout_sources import read_manifest
 from qa import ROOT, source_issues, source_state
 
+FLOOR_TEST = "delayed_convergence_uses_existing_generation_budget_and_reports_actual_evaluations"
 COMMANDS = (
+    ("math-de-floor", ("cargo", "test", "--locked", "-p", "math-optimisation",
+                       "--lib", FLOOR_TEST)),
     ("qa-unit-tests", ("cargo", "test", "--locked", "-p", "autoeq-cli", "--lib", "qa_tests")),
     ("build-autoeq", ("cargo", "build", "--locked", "--release", "--features", "cli", "--bin", "autoeq")),
     ("qa-ascilab-6b", ("just", "qa-ascilab-6b")),
@@ -133,7 +136,8 @@ def run(output: Path) -> int:
                 entry["selected_x_evidence"] = str(evidence_path)
             log_path = output / f"{name}.log"
             with log_path.open("w") as log:
-                child = subprocess.Popen(command, cwd=ROOT / "autoeq", stdout=log,
+                cwd = ROOT / ("math-audio" if name == "math-de-floor" else "autoeq")
+                child = subprocess.Popen(command, cwd=cwd, stdout=log,
                                          stderr=subprocess.STDOUT, start_new_session=True, env=env)
                 started = time.monotonic()
                 try:
@@ -160,6 +164,12 @@ def run(output: Path) -> int:
                 entry["error"] = "selected-x evidence was not written"
             if not entry["cleanup_ok"]:
                 entry["error"] = "owned process group did not terminate cleanly"
+            if name == "math-de-floor":
+                passed = re.findall(r"^test \S*" + re.escape(FLOOR_TEST) + r" \.\.\. ok$",
+                                    output_text, re.MULTILINE)
+                entry["floor_test_passed"] = len(passed)
+                if len(passed) != 1:
+                    entry["error"] = "expected exactly one passing DE floor regression"
             if name == "qa-unit-tests":
                 output_text = (output / f"{name}.log").read_text()
                 passed = set(re.findall(r"^test \S+::(test_\w+) \.\.\. ok$", output_text, re.MULTILINE))
@@ -171,7 +181,7 @@ def run(output: Path) -> int:
             report_path.write_text(json.dumps(report, indent=2) + "\n")
             if not entry["cleanup_ok"]:
                 break
-            if name in ("qa-unit-tests", "build-autoeq") and (entry["exit_code"] or entry.get("error")):
+            if name in ("math-de-floor", "qa-unit-tests", "build-autoeq") and (entry["exit_code"] or entry.get("error")):
                 break
     except BaseException as error:
         report["error"] = f"{type(error).__name__}: {error}"
