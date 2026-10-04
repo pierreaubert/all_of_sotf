@@ -1,0 +1,75 @@
+name: Pinned fractional DSP and NIH horizon diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: x86:linux:host
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout immutable sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Run named fractional DSP and NIH horizon regressions
+        run: |
+          set -euo pipefail
+          python3 -m unittest scripts.release.test_f64_fractional_nih_supervision -v 2>&1 | tee f64-fractional-supervision.log
+          grep -Eq '^Ran 2 tests in ' f64-fractional-supervision.log
+          grep -Eq '^OK$' f64-fractional-supervision.log
+          ! grep -Eiq 'skipped|expected failure|unexpected success' f64-fractional-supervision.log
+          python3 scripts/release/f64_fractional_nih_check.py target/release-gitea/f64-fractional-nih
+      - name: Upload complete Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: f64-fractional-nih-linux
+          path: |
+            checkout-sources.log
+            f64-fractional-supervision.log
+            target/release-gitea/f64-fractional-nih/
+          if-no-files-found: warn
+
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout immutable sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Run named fractional DSP and NIH horizon regressions
+        run: |
+          set -euo pipefail
+          python3 -m unittest scripts.release.test_f64_fractional_nih_supervision -v 2>&1 | tee f64-fractional-supervision.log
+          grep -Eq '^Ran 2 tests in ' f64-fractional-supervision.log
+          grep -Eq '^OK$' f64-fractional-supervision.log
+          ! grep -Eiq 'skipped|expected failure|unexpected success' f64-fractional-supervision.log
+          python3 scripts/release/f64_fractional_nih_check.py target/release-gitea/f64-fractional-nih
+      - name: Upload complete macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: f64-fractional-nih-macos
+          path: |
+            checkout-sources.log
+            f64-fractional-supervision.log
+            target/release-gitea/f64-fractional-nih/
+          if-no-files-found: warn
