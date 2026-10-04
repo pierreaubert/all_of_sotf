@@ -1,0 +1,110 @@
+name: Tract compatibility candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Candidate runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout all pinned sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: python3 scripts/release/checkout_sources.py
+      - name: Prove macOS supervisor fails closed
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea
+          python3 -m unittest -v \
+            scripts.release.test_tract_candidate_check.SupervisorTests.test_inspection_failure_is_red_even_if_group_is_gone \
+            scripts.release.test_tract_candidate_check.SupervisorTests.test_malformed_process_inventory_fails_closed \
+            scripts.release.test_tract_candidate_check.SupervisorTests.test_root_guard_accepts_exact_gitlinks_and_rejects_dirty_layout \
+            2>&1 | tee target/release-gitea/tract-supervisor-tests.log
+          grep -q '^Ran 3 tests in ' target/release-gitea/tract-supervisor-tests.log
+          grep -q '^OK$' target/release-gitea/tract-supervisor-tests.log
+          if grep -Eq '^(FAILED|ERROR|FAIL|OK \(skipped=|OK \(expected failures=)' target/release-gitea/tract-supervisor-tests.log; then exit 1; fi
+      - name: Verify fork, seven source identities, and real inference tests
+        run: python3 scripts/release/tract_candidate_check.py 706cccb56b2de6bfcbd0016b9c260aef183e41d7 target/release-gitea/tract-candidate-macos
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: tract-candidate-macos
+          path: |
+            target/release-gitea/tract-supervisor-tests.log
+            target/release-gitea/tract-candidate-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Linux toolchain
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" -eq 0
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang mold cmake ninja-build pkg-config \
+            python3 python3-dev libssl-dev libasound2-dev libclang-dev \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libfontconfig1-dev \
+            libfreetype6-dev libwayland-dev libx11-xcb-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libxcb1-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxrandr-dev libxi-dev \
+            libxcursor-dev libegl1-mesa-dev libgl1-mesa-dev
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Checkout all pinned sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: python3 scripts/release/checkout_sources.py
+      - name: Prove owned descendant cleanup and inspection failure
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea
+          python3 -m unittest -v scripts.release.test_tract_candidate_check 2>&1 | tee target/release-gitea/tract-supervisor-tests.log
+          grep -q '^Ran 4 tests in ' target/release-gitea/tract-supervisor-tests.log
+          grep -q '^OK$' target/release-gitea/tract-supervisor-tests.log
+          if grep -Eq '^(FAILED|ERROR|FAIL|OK \(skipped=|OK \(expected failures=)' target/release-gitea/tract-supervisor-tests.log; then exit 1; fi
+      - name: Verify fork, seven source identities, and real inference tests
+        run: python3 scripts/release/tract_candidate_check.py 706cccb56b2de6bfcbd0016b9c260aef183e41d7 target/release-gitea/tract-candidate-linux
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: tract-candidate-linux
+          path: |
+            target/release-gitea/tract-supervisor-tests.log
+            target/release-gitea/tract-candidate-linux/
+          if-no-files-found: warn
