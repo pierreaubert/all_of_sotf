@@ -10,19 +10,19 @@
       "revision": "77d13fa8d9cf1f7462aece14dfd946a3900483be"
     },
     "math-audio": {
-      "revision": "a1bb01ed86aa2bb701504027c5e737cc0133dea2"
+      "revision": "69ac84bb9f3acf37330815fe9a032913d63ae32a"
     },
     "sofa-reader": {
-      "revision": "15e78a7af254914787c6e66c617373d77d72e313"
+      "revision": "dc36d8b16acd4bb19598660f4fd096ba180bfc35"
     },
     "sotf": {
-      "revision": "b2605692214707cf0a8287c18f1206361748fe6e"
+      "revision": "48e372df174e2398b964b5d861bde2aecfd983a5"
     },
     "sotf-capture": {
       "revision": "7cbadd0b66d43ece25f2b629ea6a19a382ccdab5"
     },
     "sotf-daw": {
-      "revision": "b46dd49d48164343a423ab38e6a0b7f53f68303e"
+      "revision": "46a5d8e73de45fe71f953596b9c02efec7bdf84d"
     },
     "sotf-systemwide": {
       "revision": "4c41171e9af5cdf4ee7fad36ca019ee12075a09f"
