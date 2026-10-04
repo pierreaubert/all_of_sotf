@@ -8,11 +8,12 @@ jobs:
     # This runner label starts a disposable container. Do not mount host audio
     # devices or forward host PulseAudio/PipeWire/JACK sockets into this job.
     runs-on: ubuntu-latest
-    timeout-minutes: 240
     env:
       RUSTUP_TOOLCHAIN: 1.99.0
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
+      CI: 'true'
+      DISPOSABLE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,8 +64,18 @@ jobs:
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
         run: |
-          set -o pipefail
+          set -euo pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Prove owned cleanup and positive inventory guards
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-systemwide-full-preflight
+          python3 -m unittest -v scripts.release.test_systemwide_linux_full_check \
+            > target/release-systemwide-full-preflight/tests.log 2>&1
+          grep -Eq '^Ran 3 tests in ' target/release-systemwide-full-preflight/tests.log
+          grep -Eq '^OK$' target/release-systemwide-full-preflight/tests.log
+          ! grep -Eq 'skipped|expected failure|unexpected success' \
+            target/release-systemwide-full-preflight/tests.log
       - name: Run owned systemwide check and qa recipes
         run: python3 scripts/release/systemwide_linux_full_check.py release-systemwide-full-linux
       - name: Upload complete Linux systemwide evidence
@@ -74,5 +85,6 @@ jobs:
           name: systemwide-full-linux
           path: |
             checkout-sources.log
+            target/release-systemwide-full-preflight/
             release-systemwide-full-linux/
           if-no-files-found: warn
