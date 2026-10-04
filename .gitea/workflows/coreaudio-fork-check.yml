@@ -1,0 +1,34 @@
+name: CoreAudio fork pure callback qualification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CI: 'true'
+      SOTF_GITEA_DISPOSABLE_RUNNER: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prove owned-process supervisor fails closed
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/coreaudio-fork-macos
+          python3 -m unittest -v scripts.release.test_coreaudio_fork_check \
+            2>&1 | tee target/release-gitea/coreaudio-fork-macos/supervisor-tests.log
+          grep -q '^Ran 3 tests in ' target/release-gitea/coreaudio-fork-macos/supervisor-tests.log
+          grep -q '^OK$' target/release-gitea/coreaudio-fork-macos/supervisor-tests.log
+          if grep -Eq '^(FAILED|ERROR|FAIL|OK \(skipped=|OK \(expected failures=)' target/release-gitea/coreaudio-fork-macos/supervisor-tests.log; then exit 1; fi
+      - name: Prove callback allocation ownership and compile fork targets
+        run: python3 scripts/release/coreaudio_fork_check.py target/release-gitea/coreaudio-fork-macos
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coreaudio-fork-macos
+          path: target/release-gitea/coreaudio-fork-macos/
+          if-no-files-found: error

@@ -1,0 +1,36 @@
+name: Apple audio fork device target objects
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    env:
+      CI: 'true'
+      SOTF_GITEA_DISPOSABLE_RUNNER: '1'
+      RUSTUP_TOOLCHAIN: 1.99.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prove supervisor and Apple preflight guards
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/apple-audio-fork-targets
+          python3 -m unittest -v \
+            scripts.release.test_coreaudio_fork_check \
+            scripts.release.test_apple_audio_fork_targets \
+            2>&1 | tee target/release-gitea/apple-audio-fork-targets/preflight-tests.log
+          grep -q '^Ran 6 tests in ' target/release-gitea/apple-audio-fork-targets/preflight-tests.log
+          grep -q '^OK$' target/release-gitea/apple-audio-fork-targets/preflight-tests.log
+          if grep -Eq '^(FAILED|ERROR|FAIL|OK \(skipped=|OK \(expected failures=)' target/release-gitea/apple-audio-fork-targets/preflight-tests.log; then exit 1; fi
+      - name: Build pinned PSM and CoreAudio device target objects
+        run: python3 scripts/release/apple_audio_fork_targets.py target/release-gitea/apple-audio-fork-targets
+      - name: Upload evidence including missing SDK details
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: apple-audio-fork-targets
+          path: target/release-gitea/apple-audio-fork-targets/
+          if-no-files-found: error
