@@ -34,18 +34,26 @@ state = {}
 for name, entry in sources.items():
     path = root / name
     revision = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
-    tracked = subprocess.check_output(["git", "-C", str(path), "diff", "--name-only", "HEAD"], text=True).splitlines()
+    working_status = subprocess.check_output(
+        ["git", "-C", str(path), "status", "--porcelain", "--untracked-files=all"],
+        text=True,
+    ).splitlines()
     state[name] = {
         "revision": revision,
-        "tracked_status": tracked,
+        "working_status": working_status,
         "lock_sha256": hashlib.sha256((path / "Cargo.lock").read_bytes()).hexdigest(),
     }
-    if mode == "before" and (revision != entry["revision"] or tracked):
+    if name == "autoeq":
+        nested_lock = path / "crates" / "autoeq-gpui-examples" / "Cargo.lock"
+        if not nested_lock.is_file():
+            raise SystemExit("autoeq: nested GPUI examples Cargo.lock is missing")
+        state[name]["nested_lock_sha256"] = hashlib.sha256(nested_lock.read_bytes()).hexdigest()
+    if mode == "before" and (revision != entry["revision"] or working_status):
         raise SystemExit(f"{name}: source differs from clean pinned revision")
 destination = before_path if mode == "before" else after_path
 destination.write_text(json.dumps(state, indent=2) + "\n")
 if mode == "after" and state != json.loads(before_path.read_text()):
-    raise SystemExit("Pinned source revision, tracked status, or Cargo.lock changed")
+    raise SystemExit("Pinned source revision, working status, or Cargo.lock changed")
 PY
 }
 
