@@ -21,7 +21,6 @@ jobs:
   macos:
     if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos')
     runs-on: m4
-    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +50,6 @@ jobs:
   linux:
     if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux')
     runs-on: x86:linux:host
-    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,7 +79,6 @@ jobs:
   scripts:
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve'
     runs-on: x86:linux:host
-    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,7 +104,6 @@ jobs:
   dependency-graph:
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve'
     runs-on: x86:linux:host
-    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,7 +131,6 @@ jobs:
   resolve:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.phase == 'resolve'
     runs-on: x86:linux:host
-    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:
