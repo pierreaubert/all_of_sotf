@@ -37,7 +37,14 @@ VERSION = re.compile(
     r"(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$"
 )
 WASM_FAMILY = {"wasm-bindgen", "wasm-bindgen-futures", "wasm-bindgen-macro",
-               "wasm-bindgen-macro-support", "wasm-bindgen-shared", "js-sys", "web-sys"}
+               "wasm-bindgen-macro-support", "wasm-bindgen-shared", "wasm-bindgen-test",
+               "wasm-bindgen-test-macro", "wasm-bindgen-test-shared", "js-sys", "web-sys"}
+# Reviewed crates.io manifests: wasm-bindgen-test 0.3.79 has exact
+# test-macro 0.3.79, test-shared 0.2.129, js-sys 0.3.106,
+# wasm-bindgen 0.2.129, and futures 0.4.79 dependencies.
+WASM_TEST_COMPANIONS = (("wasm-bindgen-test", "0.3.77", "0.3.79"),
+                        ("wasm-bindgen-test-macro", "0.3.77", "0.3.79"),
+                        ("wasm-bindgen-test-shared", "0.2.127", "0.2.129"))
 CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
 ACTIVE: subprocess.Popen | None = None
 
@@ -124,6 +131,23 @@ def plans(specs: list[tuple[str, Path, Path]]) -> tuple[list[dict], list[dict]]:
                 updates.append({"workspace": name, "package": package, "from": old,
                                 "to": target, "compatibility": group,
                                 "coupled_wasm_family": package in WASM_FAMILY})
+    # GPUI alone captures the old test companion trio, so its reviewed
+    # matching targets cannot be inferred from another captured lock. Select
+    # them only when the same workspace plans the 0.2.129 core family.
+    for name, _, lock in specs:
+        versions = registry_versions(lock)
+        core_target = any(item["workspace"] == name and item["package"] == "wasm-bindgen"
+                          and item["to"] == "0.2.129" for item in updates)
+        if not core_target:
+            continue
+        for package, old, target in WASM_TEST_COMPANIONS:
+            if old not in versions.get(package, set()):
+                continue
+            updates.append({"workspace": name, "package": package,
+                            "from": old, "to": target,
+                            "compatibility": compatibility(old),
+                            "target_origin": "reviewed crates.io exact-dependency companion",
+                            "coupled_wasm_family": True})
     updates.sort(key=lambda item: (not item["coupled_wasm_family"], item["workspace"],
                                    item["package"], version_key(item["from"])))
     return updates, rejected
@@ -287,7 +311,7 @@ def main() -> int:
             report["issues"].append("prerelease or invalid registry versions require manual compatibility review")
             raise RuntimeError("automatic alignment refuses unclassified prerelease compatibility")
         write_report(report_path, report)
-        # js-sys/web-sys/wasm-bindgen-futures carry exact family constraints.
+        # js-sys/web-sys/futures/test carry exact family constraints.
         # Unlock every present family member together, without --precise: Cargo
         # does not apply separate precise targets to multiple -p selectors.
         for name, cwd, lock in specs:

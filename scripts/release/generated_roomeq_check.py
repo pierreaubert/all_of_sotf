@@ -166,18 +166,33 @@ def main() -> int:
                 commands.append(result)
                 if result["exit_code"] or not result["cleanup_ok"]:
                     raise RuntimeError(f"AutoEQ {method} generator failed")
-            artifacts = sorted(output.rglob("*.json"))
-            if [p.name for p in artifacts] != ["dsp_fir.json", "dsp_iir.json", "dsp_mixed.json"]:
-                raise RuntimeError("expected exactly three generated DSP JSON artifacts")
-            for path in artifacts:
+            # Retain the complete native bundles, including metadata and WAV
+            # sidecars, before a failed handoff check can remove the tempdir.
+            shutil.copytree(output, evidence / "generated-artifacts")
+            published = sorted(path for path in output.rglob("*") if path.is_file())
+            observed = [{"path": str(path.relative_to(output)), "bytes": path.stat().st_size}
+                        for path in published]
+            (evidence / "published-inventory.json").write_text(json.dumps(observed, indent=2))
+            graph_handoff = private_root / "graph-handoff"
+            graph_handoff.mkdir(mode=0o700)
+            for method in ("iir", "fir", "mixed"):
+                path = output / f"dsp_{method}.json"
+                if path.is_symlink() or not path.is_file():
+                    raise RuntimeError(f"missing canonical DSP output: {path.name}")
                 data = path.read_bytes()
                 if not data:
                     raise RuntimeError(f"empty generated artifact: {path.name}")
-                files.append({"name": path.name, "bytes": len(data),
-                              "sha256": hashlib.sha256(data).hexdigest()})
+                copied = graph_handoff / path.name
+                copied.write_bytes(data)
+                digest = hashlib.sha256(data).hexdigest()
+                if hashlib.sha256(copied.read_bytes()).hexdigest() != digest:
+                    raise RuntimeError(f"graph handoff changed DSP bytes: {path.name}")
+                files.append({"name": path.name, "bytes": len(data), "sha256": digest})
+            if sorted(path.name for path in graph_handoff.rglob("*.json")) != [
+                    "dsp_fir.json", "dsp_iir.json", "dsp_mixed.json"]:
+                raise RuntimeError("expected exactly three generated DSP JSON artifacts")
             (evidence / "artifact-inventory.json").write_text(json.dumps(files, indent=2))
-            shutil.copytree(output, evidence / "generated-artifacts")
-            env["SOTF_GENERATED_ROOM_EQ_DIR"] = str(output)
+            env["SOTF_GENERATED_ROOM_EQ_DIR"] = str(graph_handoff)
             argv = ["cargo", "test", "--locked", "-p", "sotf-daemon", "--bin", "sotf-daemon",
                     "plugin_artifact::tests::all_generated_room_eq_files_build_graphs", "--",
                     "--ignored", "--exact"]
