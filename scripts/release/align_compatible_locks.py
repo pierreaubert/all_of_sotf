@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+import ctypes
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -128,22 +129,68 @@ def plans(specs: list[tuple[str, Path, Path]]) -> tuple[list[dict], list[dict]]:
     return updates, rejected
 
 
-def stop_group(process: subprocess.Popen) -> bool:
+def enable_subreaper() -> None:
+    if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "PR_SET_CHILD_SUBREAPER failed")
+
+
+def group_members(pgid: int) -> list[dict]:
+    proc = subprocess.run(["ps", "-eo", "pid=,ppid=,pgid=,stat="], text=True,
+                          capture_output=True, check=True, timeout=3)
+    members = []
+    for line in proc.stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 4 and int(fields[2]) == pgid:
+            members.append({"pid": int(fields[0]), "ppid": int(fields[1]), "state": fields[3]})
+    return members
+
+
+def reap_children() -> None:
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid == 0:
+            return
+
+
+def stop_group(process: subprocess.Popen) -> tuple[bool, list[dict], list[str]]:
+    errors: list[str] = []
+
+    def inspect() -> list[dict] | None:
+        try:
+            return group_members(process.pid)
+        except Exception as exc:
+            errors.append(f"owned group inspection failed: {exc}")
+            return None
+
     for signum in (signal.SIGTERM, signal.SIGKILL):
+        members = inspect()
+        if members == [] and not errors:
+            return True, [], []
         try:
             os.killpg(process.pid, signum)
         except ProcessLookupError:
-            process.wait(timeout=1)
-            return True
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            continue
-        try:
-            os.killpg(process.pid, 0)
-        except ProcessLookupError:
-            return True
-    return False
+            pass
+        except OSError as exc:
+            errors.append(f"owned group signal failed: {exc}")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                reap_children()
+            except OSError as exc:
+                errors.append(f"owned child reap failed: {exc}")
+            members = inspect()
+            if members == [] and not errors:
+                return True, [], []
+            time.sleep(0.1)
+    try:
+        reap_children()
+    except OSError as exc:
+        errors.append(f"owned child reap failed: {exc}")
+    members = inspect()
+    return members == [] and not errors, members or [], errors
 
 
 def interrupted(_signum: int, _frame: object) -> None:
@@ -157,21 +204,28 @@ def command(argv: list[str], cwd: Path, log: Path, timeout: int) -> dict:
         ACTIVE = subprocess.Popen(argv, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
                                   start_new_session=True)
         try:
-            code = ACTIVE.wait(timeout=timeout)
-            clean = stop_group(ACTIVE)
-            return {"argv": argv, "exit_code": code, "cleanup_ok": clean,
-                    "duration_seconds": round(time.monotonic()-start, 2), "log": str(log)}
-        except subprocess.TimeoutExpired:
-            clean = stop_group(ACTIVE)
-            return {"argv": argv, "exit_code": None, "timeout": True, "cleanup_ok": clean,
-                    "duration_seconds": round(time.monotonic()-start, 2), "log": str(log)}
+            deadline = start + timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    code, timed_out, was_interrupted = 124, True, False
+                    break
+                try:
+                    code = ACTIVE.wait(timeout=min(30, remaining))
+                    timed_out, was_interrupted = False, False
+                    break
+                except subprocess.TimeoutExpired:
+                    print(f"[{cwd.name}] alignment command still running; owned PID {ACTIVE.pid}", flush=True)
         except KeyboardInterrupt:
-            clean = stop_group(ACTIVE)
-            if not clean:
-                raise RuntimeError("alignment child process group survived interruption")
-            raise
+            code, timed_out, was_interrupted = 130, False, True
         finally:
+            clean, survivors, inspection_errors = stop_group(ACTIVE)
             ACTIVE = None
+        return {"argv": argv, "exit_code": code, "timeout": timed_out,
+                "interrupted": was_interrupted, "cleanup_ok": clean,
+                "owned_group_survivors": survivors,
+                "cleanup_inspection_errors": inspection_errors,
+                "duration_seconds": round(time.monotonic()-start, 2), "log": str(log)}
 
 
 def write_report(path: Path, report: dict) -> None:
@@ -205,6 +259,7 @@ def main() -> int:
     specs = lock_specs(root)
     revisions: dict[str, str] = {}
     try:
+        enable_subreaper()
         _, _, revisions = read_manifest(manifest)
         for name in WORKSPACES:
             repo = root / name
@@ -227,11 +282,60 @@ def main() -> int:
         proposed, rejected = plans(specs)
         report["plan"] = proposed
         report["manual_review"] = rejected
+        report["wasm_batches"] = []
         if rejected:
             report["issues"].append("prerelease or invalid registry versions require manual compatibility review")
             raise RuntimeError("automatic alignment refuses unclassified prerelease compatibility")
         write_report(report_path, report)
+        # js-sys/web-sys/wasm-bindgen-futures carry exact family constraints.
+        # Unlock every present family member together, without --precise: Cargo
+        # does not apply separate precise targets to multiple -p selectors.
+        for name, cwd, lock in specs:
+            family_plan = [item for item in proposed if item["workspace"] == name
+                           and item["coupled_wasm_family"]]
+            if not family_plan:
+                continue
+            before_family = family_versions(lock)
+            selected = sorted(f"{package}@{version}"
+                              for package, versions in before_family.items()
+                              for version in versions)
+            targets = {package: sorted({item["to"] for item in family_plan
+                                        if item["package"] == package})
+                       for package in sorted({item["package"] for item in family_plan})}
+            batch = {"workspace": name, "selected": selected, "targets": targets,
+                     "before": before_family, "status": "RUNNING"}
+            report["wasm_batches"].append(batch)
+            argv = ["cargo", "update"]
+            for spec in selected:
+                argv.extend(["-p", spec])
+            result = command(argv, cwd, output / "logs" / f"wasm-batch-{name}.log",
+                             args.timeout_per_update)
+            report["commands"].append(result)
+            batch["command"] = result
+            batch["after"] = family_versions(lock)
+            batch["status"] = "UPDATED" if result["exit_code"] == 0 and result["cleanup_ok"] else "FAIL"
+            if batch["status"] == "FAIL":
+                report["issues"].append(f"{name}: coupled Wasm unlock failed; partial lock retained")
+                write_report(report_path, report)
+                break
+            for item in family_plan:
+                present = registry_versions(lock).get(item["package"], set())
+                if item["from"] not in present and (item["to"] in present or not present):
+                    item["status"] = "BATCH_TARGET_PRESENT" if present else "BATCH_PACKAGE_PRUNED"
+                else:
+                    item["status"] = "FAIL"
+                    report["issues"].append(
+                        f"{name}: coupled Wasm batch did not attain captured target for "
+                        f"{item['package']} {item['from']} -> {item['to']}"
+                    )
+            write_report(report_path, report)
+            if report["issues"]:
+                break
         for number, item in enumerate(proposed):
+            if report["issues"]:
+                break
+            if item.get("status", "").startswith("BATCH_"):
+                continue
             name = item["workspace"]
             _, cwd, lock = next(spec for spec in specs if spec[0] == name)
             if item["from"] not in registry_versions(lock).get(item["package"], set()):
@@ -270,7 +374,10 @@ def main() -> int:
         report["issues"].append(str(error))
         report["interrupted"] = True
         if ACTIVE is not None:
-            report["cleanup_ok"] = stop_group(ACTIVE)
+            clean, survivors, inspection_errors = stop_group(ACTIVE)
+            report["cleanup_ok"] = clean
+            report["owned_group_survivors"] = survivors
+            report["cleanup_inspection_errors"] = inspection_errors
     except Exception as error:
         report["issues"].append(str(error))
     finally:
@@ -293,6 +400,10 @@ def main() -> int:
                     "removed": sorted(before_ids - after_ids),
                     "unexpected_additions": sorted((after_ids - before_ids) - planned_targets),
                 }
+                if report["package_changes"][name]["unexpected_additions"]:
+                    report["issues"].append(
+                        f"{name}: unexpected package/source/version additions require review"
+                    )
                 report["wasm_family"].setdefault(name, {})["after"] = family_versions(lock)
             except OSError as error:
                 report["issues"].append(f"{name}: could not preserve partial lock: {error}")
