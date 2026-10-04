@@ -4,7 +4,7 @@
   "owner": "pierre",
   "sources": {
     "autoeq": {
-      "revision": "2a14c2e868d3e31641f1b06cfc5a3f48364075a3"
+      "revision": "07fc69d371a52199d3baf11df2b8d5ae6df78948"
     },
     "gpui-toolkit": {
       "revision": "0c0696a7321da081e881e6fbb4e1b3692ee91f98"
@@ -19,7 +19,7 @@
       "revision": "616ef95bdd4435906cf64bc2747a3ac91bb41380"
     },
     "sotf-capture": {
-      "revision": "60f102c94c8f031444266266bb8712a7a69a3597"
+      "revision": "c8147b8b3dafe60b5cae8cae2288a7e18dd2f1a3"
     },
     "sotf-daw": {
       "revision": "cfbb1b88eb2e56b85b412efac7aa88e072b08bb5"
