@@ -4,7 +4,7 @@
   "owner": "pierre",
   "sources": {
     "autoeq": {
-      "revision": "0be470b5442733e159f0db66cf5a613225170b03"
+      "revision": "eec00ed02e20941fea4c4689bc607de06840e4c2"
     },
     "gpui-toolkit": {
       "revision": "77d13fa8d9cf1f7462aece14dfd946a3900483be"
@@ -16,16 +16,16 @@
       "revision": "15e78a7af254914787c6e66c617373d77d72e313"
     },
     "sotf": {
-      "revision": "d6c9dd9bef68f023644337cfe55cb14cbfa1bc68"
+      "revision": "b07e5079330aa54c60e1f948e3d62d2e8b66ab0e"
     },
     "sotf-capture": {
-      "revision": "7cbadd0b66d43ece25f2b629ea6a19a382ccdab5"
+      "revision": "2414c5aee4f84fc2b71ac3b1fd04cb41961f567c"
     },
     "sotf-daw": {
-      "revision": "7657fd0c5c0e00a134cb9686409b083bd7d3b498"
+      "revision": "d97798415a31b5a85ae172dc11eebb106c46188b"
     },
     "sotf-systemwide": {
-      "revision": "4c41171e9af5cdf4ee7fad36ca019ee12075a09f"
+      "revision": "72b67707642678fb5333f04a2a87b95ac4456206"
     },
     "symphonia-add-ons": {
       "revision": "facbe92fcdeaa228b65d9ba94e1563c4d4924c7a"
