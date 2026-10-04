@@ -18,6 +18,39 @@ cp sotf/crates/sotf-dev-driver/suites/plugin_workflow_ui.toml "$output/plugin_wo
 } >"$output/toolchain-display.txt" 2>&1
 failed=0
 
+source_state() {
+    python3 - "$output/source-before.json" "$output/source-after.json" "$1" <<'PY'
+import hashlib
+import json
+import pathlib
+import subprocess
+import sys
+
+root = pathlib.Path.cwd()
+before_path, after_path = map(pathlib.Path, sys.argv[1:3])
+mode = sys.argv[3]
+sources = json.loads((root / "scripts/release/sources.json").read_text())["sources"]
+state = {}
+for name, entry in sources.items():
+    path = root / name
+    revision = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
+    tracked = subprocess.check_output(["git", "-C", str(path), "diff", "--name-only", "HEAD"], text=True).splitlines()
+    state[name] = {
+        "revision": revision,
+        "tracked_status": tracked,
+        "lock_sha256": hashlib.sha256((path / "Cargo.lock").read_bytes()).hexdigest(),
+    }
+    if mode == "before" and (revision != entry["revision"] or tracked):
+        raise SystemExit(f"{name}: source differs from clean pinned revision")
+destination = before_path if mode == "before" else after_path
+destination.write_text(json.dumps(state, indent=2) + "\n")
+if mode == "after" and state != json.loads(before_path.read_text()):
+    raise SystemExit("Pinned source revision, tracked status, or Cargo.lock changed")
+PY
+}
+
+source_state before || exit 1
+
 run_check() {
     local name=$1 workspace=$2 required_test=$3
     shift 3
@@ -62,5 +95,7 @@ if [ -s "$output/toolkit-lock-status.txt" ]; then
     printf 'GPUI toolkit Cargo.lock changed during UI QA\n' | tee -a "$output/toolkit-lock-status.txt"
     failed=1
 fi
+
+source_state after || failed=1
 
 exit "$failed"

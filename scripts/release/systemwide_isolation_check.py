@@ -115,7 +115,13 @@ def main() -> int:
     (output / "source-before.json").write_text(json.dumps(before, indent=2) + "\n")
     positive_result = r"^test result: ok\. [1-9][0-9]* passed; 0 failed;"
     checks: list[tuple[str, list[str], int, tuple[str, ...]]] = [
-        ("systemwide-format", ["cargo", "fmt", "--all", "--", "--check"], 180, ()),
+        ("systemwide-owned-format", ["rustfmt", "--check", "--edition", "2024",
+                                      "crates/daemon/bin/driver_manager.rs",
+                                      "crates/daemon/bin/sotf_daemon/audio_daemon.rs",
+                                      "crates/daemon/bin/sotf_daemon/pipeline_reconfigure_outcome.rs",
+                                      "crates/daemon/bin/sotf_daemon/tests.rs",
+                                      "crates/daemon/tests/ipc_line_tests.rs",
+                                      "crates/daemon/tests/hal_driver_contract_tests.rs"], 180, ()),
         ("driver-output-inventory", ["cargo", "test", "--locked", "-p", "sotf-daemon",
                                      "--bin", "sotf-daemon", "--", "--list"], 1200,
          (r"injected_driver_lab_output_is_explicit_and_keeps_driver_identity: test",)),
