@@ -18,14 +18,16 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
-      - name: Verify clean release root before creating job evidence
-        run: test -z "$(git status --porcelain)"
+      - name: Verify pinned sibling checkouts and clean release root
+        env:
+          CI: 'true'
+        run: python3 scripts/release/mac_safe_full_qa.py --preflight-root
       - name: Verify owned process-group cleanup on macOS
         run: |
           set -o pipefail
           python3 -m venv target/release-gitea/mac-safe-venv
           target/release-gitea/mac-safe-venv/bin/python -m pip install pytest tomlkit
-          target/release-gitea/mac-safe-venv/bin/python -m pytest -q scripts/release/test_qa.py -k 'macos_group_cleanup_stops_descendant_after_leader_exits or macos_group_inspection_failure_fails_closed or macos_command_with_surviving_owned_group_cannot_pass or macos_interrupted_wrapper_cleans_registered_nested_group or macos_registration_failure_still_cleans_started_group' 2>&1 | tee mac-group-cleanup-tests.log
+          target/release-gitea/mac-safe-venv/bin/python -m pytest -q scripts/release/test_qa.py scripts/release/test_mac_safe_full_qa.py -k 'macos_group_cleanup_stops_descendant_after_leader_exits or macos_group_inspection_failure_fails_closed or macos_command_with_surviving_owned_group_cannot_pass or macos_interrupted_wrapper_cleans_registered_nested_group or macos_registration_failure_still_cleans_started_group or mac_safe_checkout' 2>&1 | tee mac-group-cleanup-tests.log
       - name: Run non-hardware release gates
         env:
           CI: 'true'

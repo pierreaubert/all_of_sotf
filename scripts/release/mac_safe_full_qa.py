@@ -27,6 +27,19 @@ TEST_GATES = {
 }
 
 
+def root_checkout_status(pins: dict[str, str]) -> dict[str, list[str]]:
+    """Permit only the nine separately guarded sibling checkouts at root."""
+    lines = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=normal"],
+        cwd=ROOT, text=True,
+    ).splitlines()
+    allowed = {f"?? {name}/" for name in pins}
+    observed = sorted(line for line in lines if line in allowed)
+    unexpected = sorted(line for line in lines if line not in allowed)
+    return {"allowed_sibling_checkouts": observed, "unexpected_root_paths": unexpected,
+            "missing_sibling_checkouts": sorted(allowed - set(observed))}
+
+
 def interrupted(_signal: int, _frame: object) -> None:
     global STOP
     STOP = True
@@ -307,26 +320,29 @@ def main() -> int:
     if len(sys.argv) != 2 or sys.platform != "darwin" or not os.getenv("CI"):
         print("usage: Gitea macOS CI: mac_safe_full_qa.py EVIDENCE_DIR", file=sys.stderr)
         return 2
+    manifest = ROOT / "scripts/release/sources.json"
+    _, _, pins = read_manifest(manifest)
+    if sys.argv[1] == "--preflight-root":
+        status = root_checkout_status(pins)
+        print(json.dumps(status, indent=2), flush=True)
+        return 0 if not status["unexpected_root_paths"] and not status["missing_sibling_checkouts"] else 1
     if not callable(clean_mac_command_group):
         raise RuntimeError("inner qa.py command-group cleanup is required")
     evidence = (ROOT / sys.argv[1]).resolve()
     (evidence / "logs").mkdir(parents=True, exist_ok=False)
-    manifest = ROOT / "scripts/release/sources.json"
     (evidence / "sources.json").write_bytes(manifest.read_bytes())
     root_before = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    root_dirty_before = subprocess.check_output(
-        ["git", "status", "--porcelain"], cwd=ROOT, text=True,
-    ).strip()
-    _, _, pins = read_manifest(manifest)
+    root_status_before = root_checkout_status(pins)
     before = source_state(ROOT, list(workspace_map()), "macos")
     (evidence / "sources-before.json").write_text(json.dumps(before, indent=2) + "\n")
     errors = source_issues(before, before, True)
-    if root_dirty_before:
-        errors.append("root release checkout was dirty before validation")
+    if root_status_before["unexpected_root_paths"] or root_status_before["missing_sibling_checkouts"]:
+        errors.append("root release checkout has unexpected or missing paths before validation")
     for name, revision in pins.items():
         if before.get(name, {}).get("revision") != revision:
             errors.append(f"{name}: checkout does not match sources.json pin")
     results: list[dict] = []
+    root_status_after: dict[str, list[str]] | None = None
     report_path = evidence / "report.json"
     write_report(report_path, {"lane_status": "RUNNING", "full_release_qa": "INCOMPLETE",
                                "root_revision": root_before, "results": results, "errors": errors})
@@ -356,8 +372,9 @@ def main() -> int:
         errors.extend(source_issues(before, after, True))
         if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() != root_before:
             errors.append("root revision changed")
-        if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip() != root_dirty_before:
-            errors.append("root checkout cleanliness changed")
+        root_status_after = root_checkout_status(pins)
+        if root_status_after != root_status_before:
+            errors.append("root checkout status changed")
         if manifest.read_bytes() != (evidence / "sources.json").read_bytes():
             errors.append("root source manifest changed")
     except Exception as error:
@@ -371,6 +388,8 @@ def main() -> int:
     ) and not errors
     report = {"lane_status": "PASS" if included_pass else "FAIL", "full_release_qa": "INCOMPLETE",
               "root_revision": root_before, "results": results, "errors": errors,
+              "root_status_before": root_status_before,
+              "root_status_after": root_status_after,
               "required_omissions": ["SOTF physical play-to-audible", "DAW AEQ_E2E CPAL loopback at 16/44.1/48/96 kHz", "hardware-bearing dev-driver transport", "native packaging and Windows lanes"]}
     write_report(report_path, report)
     print(f"mac-safe QA: {report['lane_status']}; full release: INCOMPLETE", flush=True)
