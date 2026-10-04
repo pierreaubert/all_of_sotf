@@ -120,6 +120,7 @@ trap 'exit 143' TERM
 cat >"$work/supervise.py" <<'PY'
 import os
 import json
+import ctypes
 from pathlib import Path
 import signal
 import subprocess
@@ -131,7 +132,16 @@ timeout_seconds = int(timeout_text)
 status_path = Path(log_path).with_suffix(".status.json")
 started = time.monotonic()
 status = {"timeout_seconds": timeout_seconds, "timed_out": False,
-          "child_exit_code": None, "cleanup_ok": None, "events": []}
+          "child_exit_code": None, "cleanup_ok": None, "events": [], "reaped_descendants": []}
+
+if sys.platform.startswith("linux"):
+    # ChromeDriver starts Chrome grandchildren. Become their private reaper so
+    # container PID 1 cannot leave killed descendants as permanent zombies.
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        error = ctypes.get_errno()
+        status_path.write_text(json.dumps({"subreaper_error": os.strerror(error)}) + "\n")
+        raise OSError(error, "PR_SET_CHILD_SUBREAPER failed")
 
 def group_members(pgid):
     members = []
@@ -169,10 +179,25 @@ with Path(log_path).open("wb") as log:
             return False
         return True
 
+    def reap_descendants():
+        # subprocess owns the direct child and its exit code. Reap adopted
+        # grandchildren only after poll() confirms that child was reaped.
+        if not sys.platform.startswith("linux") or child.poll() is None:
+            return
+        while True:
+            try:
+                pid, wait_status = os.waitpid(-1, os.WNOHANG)
+            except ChildProcessError:
+                return
+            if pid == 0:
+                return
+            status["reaped_descendants"].append({"pid": pid, "wait_status": wait_status})
+
     def stop_group():
         snapshot("before_cleanup", child)
         for kind in (signal.SIGTERM, signal.SIGKILL):
             child.poll()
+            reap_descendants()
             if not group_alive():
                 snapshot("group_gone", child)
                 return True
@@ -185,11 +210,13 @@ with Path(log_path).open("wb") as log:
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
                 child.poll()
+                reap_descendants()
                 if not group_alive():
                     snapshot("group_gone", child)
                     return True
                 time.sleep(0.1)
         child.poll()
+        reap_descendants()
         snapshot("cleanup_deadline", child)
         return not group_alive()
 
