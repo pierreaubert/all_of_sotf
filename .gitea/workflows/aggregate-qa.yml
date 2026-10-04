@@ -135,7 +135,6 @@ jobs:
   resolve:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.phase == 'resolve'
     runs-on: x86:linux:host
-    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:

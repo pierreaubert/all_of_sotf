@@ -232,10 +232,12 @@ def resolve_one(name: str, revision: str, root: Path, output: Path) -> dict:
                         cwd=nested, stdout=stdout, stderr=stderr, start_new_session=True,
                     )
                     try:
-                        nested_result["exit_code"] = process.wait(timeout=900)
-                    except subprocess.TimeoutExpired:
-                        nested_result["exit_code"] = 124
-                        nested_result["error"] = "nested cargo metadata timed out after 900 seconds"
+                        while True:
+                            try:
+                                nested_result["exit_code"] = process.wait(timeout=30)
+                                break
+                            except subprocess.TimeoutExpired:
+                                print("[autoeq-gpui-examples] cargo metadata still running", flush=True)
                     except KeyboardInterrupt:
                         nested_result["exit_code"] = process.returncode or 130
                         was_interrupted = True
