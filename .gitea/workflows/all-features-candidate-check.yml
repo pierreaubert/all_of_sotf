@@ -62,6 +62,8 @@ jobs:
           grep -Eq '^Ran 2 tests in ' all-features-supervision.log
           grep -Eq '^OK$' all-features-supervision.log
           ! grep -Eiq 'skipped|expected failure|unexpected success' all-features-supervision.log
+          release_cargo_home="$(python3 -c 'import os, pathlib; print(pathlib.Path(os.environ.get("CARGO_HOME") or pathlib.Path.home() / ".cargo").resolve(strict=True))')"
+          export CARGO_HOME="$release_cargo_home"
           python3 scripts/release/all_features_candidate_check.py target/release-gitea/all-features-candidate
       - name: Upload complete macOS evidence
         if: always()

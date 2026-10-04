@@ -135,7 +135,7 @@ def main() -> int:
     output = (ROOT / sys.argv[1]).resolve()
     output.mkdir(parents=True, exist_ok=False)
     report: dict = {"status": "FAIL", "scope": "nine locked all-feature/all-target checks plus nested AutoEQ demo",
-                    "commands": [], "issues": []}
+                    "commands": [], "issues": [], "effective_cargo_home": os.environ.get("CARGO_HOME")}
     before = None
     root_before = None
     status_before = None
