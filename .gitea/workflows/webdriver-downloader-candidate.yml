@@ -1,0 +1,115 @@
+name: WebDriver downloader candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_rev:
+        description: Full immutable commit in the reviewed downloader fork branch
+        required: true
+        type: string
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, macos, linux]
+        default: all
+
+jobs:
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    timeout-minutes: 180
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify candidate and run both TLS test configurations
+        env:
+          CANDIDATE_REV: ${{ inputs.candidate_rev }}
+        run: bash scripts/release/webdriver_downloader_candidate_check.sh macos release-webdriver-candidate-macos "$CANDIDATE_REV"
+      - name: Upload macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: webdriver-candidate-macos
+          path: |
+            checkout-sources.log
+            release-webdriver-candidate-macos/
+          if-no-files-found: warn
+
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Linux build and browser environment
+        run: |
+          set -euo pipefail
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'WebDriver candidate requires a disposable root-owned Gitea container' >&2
+            exit 1
+          fi
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl unzip build-essential clang cmake ninja-build \
+            pkg-config libclang-dev libssl-dev \
+            libasound2t64 libatk1.0-0t64 libatk-bridge2.0-0t64 libcairo2 libcups2t64 \
+            libdbus-1-3 libdrm2 libexpat1 libfontconfig1 libgbm1 \
+            libgdk-pixbuf-2.0-0 libglib2.0-0t64 libgtk-3-0t64 \
+            libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 \
+            libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
+            libxi6 libxrandr2 libxshmfence1 libxss1 libxtst6
+          if command -v chromedriver >/dev/null 2>&1; then
+            echo 'A preinstalled ChromeDriver would bypass automatic download proof' >&2
+            exit 1
+          fi
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          if [ "$(rustc --version | awk '{print $2}')" != '1.99.0' ]; then
+            echo 'Rust toolchain differs from pinned release QA version' >&2
+            exit 1
+          fi
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify candidate, both TLS configurations, and automatic PNG export
+        env:
+          CANDIDATE_REV: ${{ inputs.candidate_rev }}
+        run: bash scripts/release/webdriver_downloader_candidate_check.sh linux release-webdriver-candidate-linux "$CANDIDATE_REV"
+      - name: Upload Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: webdriver-candidate-linux
+          path: |
+            checkout-sources.log
+            release-webdriver-candidate-linux/
+          if-no-files-found: warn
