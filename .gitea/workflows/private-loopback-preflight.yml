@@ -1,0 +1,51 @@
+name: Private Linux twelve-channel loopback preflight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require disposable device-free container and install virtual PCM tools
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" = 0
+          test ! -e /dev/snd
+          test -z "${PULSE_SERVER:-}${PIPEWIRE_REMOTE:-}${JACK_DEFAULT_SERVER:-}"
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            pulseaudio pulseaudio-utils libasound2-plugins alsa-utils procps python3-venv
+          useradd --create-home --uid 10001 sotfqa
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify owned-group and terminal-report supervision
+        run: |
+          set -euo pipefail
+          python3 -m venv target/release-gitea/private-loopback-venv
+          target/release-gitea/private-loopback-venv/bin/python -m unittest discover \
+            -s scripts/release -p 'test_private_loopback_preflight.py' -v \
+            2>&1 | tee private-loopback-supervisor-tests.log
+          grep -Eq '^Ran 4 tests in ' private-loopback-supervisor-tests.log
+          grep -Eq '^OK$' private-loopback-supervisor-tests.log
+          ! grep -Eiq 'skipped|expected failure|unexpected success' private-loopback-supervisor-tests.log
+      - name: Prove twelve-channel private PCM sink-to-monitor path
+        run: target/release-gitea/private-loopback-venv/bin/python scripts/release/private_loopback_preflight.py target/release-gitea/private-loopback-proof
+      - name: Upload complete private loopback evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: private-loopback-proof
+          path: |
+            checkout-sources.log
+            private-loopback-supervisor-tests.log
+            target/release-gitea/private-loopback-proof/
+          if-no-files-found: warn
