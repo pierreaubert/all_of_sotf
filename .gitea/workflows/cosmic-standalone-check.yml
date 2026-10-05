@@ -1,9 +1,16 @@
 name: Cosmic compatibility fork standalone check
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, linux, macos]
+        default: all
 
 jobs:
   linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-latest
     env:
       CI: "true"
@@ -72,6 +79,7 @@ jobs:
           if-no-files-found: error
 
   macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
     runs-on: m4
     env:
       CI: "true"
