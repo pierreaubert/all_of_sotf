@@ -39,6 +39,60 @@ class InventoryTests(unittest.TestCase):
             with self.subTest(summary=summary):
                 self.assertFalse(gate.parse_tests(self.PASS + summary, self.REQUIRED)["accepted"])
 
+    def test_only_manual_aud135_capture_ignore_is_accepted_with_real_controls(self) -> None:
+        manual_name, manual_reason = gate.MANUAL_CAPTURE_IGNORED
+        controls = (
+            "test wrapper::transport::tests::native_clap_fractional_rate_reaches_dsp_and_transport_without_integer_rounding ... ok\n"
+            "test wrapper::transport::tests::native_clap_rejects_invalid_rates_before_plugin_initialization ... ok\n"
+            "test wrapper::process_tests::ambisonics_default_order_one_waveform_matches_pre_edit_capture ... ok\n"
+        )
+        required = gate.CASES["default"]
+        ignored = f"test {manual_name} ... ignored, {manual_reason}\n"
+        summary = "test result: ok. 3 passed; 0 failed; 1 ignored;\n"
+        self.assertTrue(gate.parse_tests(
+            controls + ignored + summary, required,
+            gate.MANUAL_CAPTURE_IGNORED, minimum_positive=3,
+        )["accepted"])
+        self.assertFalse(gate.parse_tests(
+            controls + ignored + summary, required,
+            gate.MANUAL_CAPTURE_IGNORED, minimum_positive=4,
+        )["accepted"])
+        for output in (
+            controls + summary,
+            controls + f"test {manual_name} ... ignored, wrong reason\n" + summary,
+            controls + ignored + "test wrapper::other ... ignored, another skip\n" +
+                "test result: ok. 3 passed; 0 failed; 2 ignored;\n",
+            controls.replace("ambisonics_default_order_one_waveform_matches_pre_edit_capture",
+                             "unrelated_test") + ignored + summary,
+            controls + ignored + "test result: ok. 4 passed; 0 failed; 1 ignored;\n",
+        ):
+            with self.subTest(output=output):
+                self.assertFalse(gate.parse_tests(
+                    output, required, gate.MANUAL_CAPTURE_IGNORED,
+                    minimum_positive=3,
+                )["accepted"])
+
+    def test_convolution_native_filters_require_one_exact_positive_without_ignores(self) -> None:
+        for case in ("convolution-clap", "convolution-vst3"):
+            with self.subTest(case=case):
+                name = next(iter(gate.CASES[case]))
+                passed = ("test wrapper::process_tests::native_convolution_state_callbacks::"
+                          f"{name} ... ok\n")
+                self.assertTrue(gate.parse_tests(
+                    passed + "test result: ok. 1 passed; 0 failed; 0 ignored;\n",
+                    gate.CASES[case], minimum_positive=1, exact_positive=1,
+                )["accepted"])
+                self.assertFalse(gate.parse_tests(
+                    passed + "test wrapper::process_tests::capture_aud135_pre_edit_ambisonics_native_default_waveform ... ignored, capture the pre-AUD135 default native wrapper waveform before adapter changes\n"
+                    "test result: ok. 1 passed; 0 failed; 1 ignored;\n",
+                    gate.CASES[case], minimum_positive=1, exact_positive=1,
+                )["accepted"])
+                self.assertFalse(gate.parse_tests(
+                    passed + "test wrapper::unrelated ... ok\n"
+                    "test result: ok. 2 passed; 0 failed; 0 ignored;\n",
+                    gate.CASES[case], minimum_positive=1, exact_positive=1,
+                )["accepted"])
+
 
 class OwnedProcessTests(unittest.TestCase):
     def setUp(self) -> None:

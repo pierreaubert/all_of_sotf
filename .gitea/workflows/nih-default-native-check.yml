@@ -46,9 +46,12 @@ jobs:
         run: |
           set -o pipefail
           python3 -m unittest scripts.release.test_nih_default_native_check -v 2>&1 | tee nih-preflight.log
-          grep -Eq '^Ran 5 tests in ' nih-preflight.log
+          grep -Eq '^Ran 7 tests in ' nih-preflight.log
+          grep -Eq '^OK$' nih-preflight.log
           grep -Fq 'test_real_interrupt_stops_ready_parent_and_descendant' nih-preflight.log
           grep -Fq 'test_ignored_and_count_mismatch_are_rejected' nih-preflight.log
+          grep -Fq 'test_only_manual_aud135_capture_ignore_is_accepted_with_real_controls' nih-preflight.log
+          grep -Fq 'test_convolution_native_filters_require_one_exact_positive_without_ignores' nih-preflight.log
       - name: Checkout pinned sibling repositories
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
@@ -87,9 +90,12 @@ jobs:
         run: |
           set -o pipefail
           python3 -m unittest scripts.release.test_nih_default_native_check -v 2>&1 | tee nih-preflight.log
-          grep -Eq '^Ran 5 tests in ' nih-preflight.log
+          grep -Eq '^Ran 7 tests in ' nih-preflight.log
+          grep -Eq '^OK$' nih-preflight.log
           grep -Fq 'test_real_interrupt_stops_ready_parent_and_descendant' nih-preflight.log
           grep -Fq 'test_ignored_and_count_mismatch_are_rejected' nih-preflight.log
+          grep -Fq 'test_only_manual_aud135_capture_ignore_is_accepted_with_real_controls' nih-preflight.log
+          grep -Fq 'test_convolution_native_filters_require_one_exact_positive_without_ignores' nih-preflight.log
       - name: Checkout pinned sibling repositories
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}

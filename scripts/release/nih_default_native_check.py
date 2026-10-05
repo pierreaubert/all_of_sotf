@@ -25,12 +25,19 @@ CASES = {
     "default": {
         "native_clap_fractional_rate_reaches_dsp_and_transport_without_integer_rounding",
         "native_clap_rejects_invalid_rates_before_plugin_initialization",
+        "ambisonics_default_order_one_waveform_matches_pre_edit_capture",
     },
-    "convolution": {
+    "convolution-clap": {
         "clap_state_restore_stages_true_stereo_resource_and_survives_rejections",
+    },
+    "convolution-vst3": {
         "vst3_component_state_restore_stages_true_stereo_resource_and_preserves_audio",
     },
 }
+MANUAL_CAPTURE_IGNORED = (
+    "wrapper::process_tests::capture_aud135_pre_edit_ambisonics_native_default_waveform",
+    "capture the pre-AUD135 default native wrapper waveform before adapter changes",
+)
 INTERRUPTED = False
 
 
@@ -134,28 +141,45 @@ def run_owned(name: str, args: list[str], cwd: Path, evidence: Path, report: dic
     return entry
 
 
-def parse_tests(output: str, required: set[str]) -> dict:
+def parse_tests(output: str, required: set[str],
+                expected_ignored: tuple[str, str] | None = None,
+                minimum_positive: int = 1,
+                exact_positive: int | None = None) -> dict:
     passed = set(re.findall(r"(?m)^test (\S+) \.\.\. ok$", output))
+    ignored = re.findall(r"(?m)^test (\S+) \.\.\. ignored, (.+)$", output)
     matched = {test for test in required if any(full.endswith("::" + test) for full in passed)}
     summaries = re.findall(
         r"test result: ok\.\s+(\d+) passed; (\d+) failed; (\d+) ignored;",
         output,
     )
-    accepted = (matched == required and len(summaries) == 1 and len(passed) > 0
+    allowed_ignored = [expected_ignored] if expected_ignored is not None else []
+    accepted = (matched == required and len(summaries) == 1
+                and len(passed) >= minimum_positive and ignored == allowed_ignored
+                and (exact_positive is None or len(passed) == exact_positive)
                 and int(summaries[0][0]) == len(passed)
-                and summaries[0][1:] == ("0", "0"))
+                and summaries[0][1:] == ("0", str(len(allowed_ignored))))
     return {"positive_count": len(passed), "required_passed": sorted(matched),
-            "required": sorted(required), "summaries": summaries, "accepted": accepted}
+            "required": sorted(required), "ignored_inventory": ignored,
+            "expected_ignored": allowed_ignored, "summaries": summaries,
+            "accepted": accepted}
 
 
 def run_case(name: str, evidence: Path, report: dict) -> dict:
     args = ["cargo", "test", "--locked", "-p", "plugins-nih", "--lib"]
-    if name == "convolution":
+    if name.startswith("convolution-"):
         args.extend(["--no-default-features", "--features", "convolution"])
+        test_name = next(iter(CASES[name]))
+        args.append("wrapper::process_tests::native_convolution_state_callbacks::" + test_name)
     args.extend(["--", "--show-output", "--test-threads=1"])
+    if name.startswith("convolution-"):
+        args.append("--exact")
     entry = run_owned(name, args, ROOT / "sotf-daw", evidence, report)
     output = (evidence / f"{name}.log").read_text(encoding="utf-8", errors="replace")
-    inventory = parse_tests(output, CASES[name])
+    inventory = parse_tests(
+        output, CASES[name], MANUAL_CAPTURE_IGNORED if name == "default" else None,
+        minimum_positive=229 if name == "default" else 1,
+        exact_positive=1 if name.startswith("convolution-") else None,
+    )
     entry.update(inventory)
     if not inventory["accepted"]:
         entry["status"] = "FAIL"
