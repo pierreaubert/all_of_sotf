@@ -22,9 +22,11 @@ OUTPUT = ROOT / "target/release-gitea/cbindgen-standalone"
 SOURCE = "https://github.com/pierreaubert/cbindgen.git"
 OFFICIAL = "bd78bbe59b10eda6ef1255e4acda95c56c6d0279"
 OFFICIAL_TREE = "c7130dd78565e4ac583076ab227aa74ecb137ab7"
-FORK = "50c4815d1d704f86432f9cb94dc7f5ce17b7678e"
-FORK_TREE = "a45a8526bb3e2bcba064e2d7ebd1ad5161bdebac"
-DIFF_SHA256 = "8732dc90b3887851206b018b89e9a3895f6d002119df39e5cea8fd5082ec6d81"
+PARENT = "50c4815d1d704f86432f9cb94dc7f5ce17b7678e"
+FORK = "677ea823a5e264489019409d83d8cc80276bfbd8"
+FORK_TREE = "92b8c8318caea06b0f58accae93c83f4b66ccb94"
+FORK_MANIFEST_BLOB = "ca030c066665a55179b4541eec4379b12ec03ecb"
+DIFF_SHA256 = "295645807cfbb1306c5df6a741bb2ffa9744e84daf21ac15927635c35dbc930b"
 LICENSE_BLOB = "a612ad9813b006ce81d1ee438dd784da99a54007"
 LOCK_BLOB = "43efb9cb3ad6cc3ff52bf34e2462b3c4d9eeb4aa"
 TEST_LINE = re.compile(r"^test (test_[A-Za-z0-9_]+) \.\.\. ok$", re.MULTILINE)
@@ -46,7 +48,9 @@ def source_state(repo: Path) -> dict:
     return {
         "head": git(repo, "rev-parse", "HEAD"),
         "parent": git(repo, "rev-parse", "HEAD^"),
+        "grandparent": git(repo, "rev-parse", "HEAD^^"),
         "tree": git(repo, "rev-parse", "HEAD^{tree}"),
+        "manifest_blob": git(repo, "rev-parse", "HEAD:Cargo.toml"),
         "official_tree": git(repo, "rev-parse", f"{OFFICIAL}^{{tree}}"),
         "license_blob": git(repo, "rev-parse", "HEAD:LICENSE"),
         "lock_blob": git(repo, "rev-parse", "HEAD:Cargo.lock"),
@@ -141,10 +145,12 @@ def main() -> int:
         state = source_state(repo)
         report["fork_before"] = state
         owned.save(report)
-        if (state["head"], state["parent"], state["tree"], state["official_tree"],
+        if (state["head"], state["parent"], state["grandparent"],
+            state["tree"], state["official_tree"], state["manifest_blob"],
             state["license_blob"], state["lock_blob"], state["changed_paths"],
             state["diff_sha256"], state["status"]) != (
-                FORK, OFFICIAL, FORK_TREE, OFFICIAL_TREE, LICENSE_BLOB, LOCK_BLOB,
+                FORK, PARENT, OFFICIAL, FORK_TREE, OFFICIAL_TREE, FORK_MANIFEST_BLOB,
+                LICENSE_BLOB, LOCK_BLOB,
                 ["Cargo.toml"], DIFF_SHA256, []):
             raise ValueError("fork revision, one-file diff, license, or source cleanliness differs")
         lock = repo / "Cargo.lock"
