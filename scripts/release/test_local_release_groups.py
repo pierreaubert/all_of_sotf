@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import plistlib
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -71,11 +73,23 @@ class LocalReleaseGroupsTests(unittest.TestCase):
 
     def test_contract_covers_required_groups_and_keeps_unavailable_gates_explicit(self):
         self.assertEqual(tuple(groups.CONTRACT["required_groups"]), groups.REQUIRED_GROUPS)
+        self.assertEqual(
+            groups.CONTRACT["required_groups_by_target"],
+            {
+                "macos-arm64": list(groups.REQUIRED_GROUPS),
+                "linux-arm64": ["desktop", "tui", "roomeq", "plugins"],
+            },
+        )
+        self.assertEqual(groups.CONTRACT["deferred_groups_by_target"]["linux-arm64"], ["systemwide"])
         for target in groups.TARGETS:
             self.assertEqual(set(groups.CONTRACT["targets"][target]), set(groups.REQUIRED_GROUPS))
-        self.assertIn("pending", groups.CONTRACT["minimum_os"]["macos"])
+        self.assertEqual(groups.CONTRACT["minimum_os"]["macos"], "15.0")
         linux_systemwide = groups.CONTRACT["targets"]["linux-arm64"]["systemwide"]
-        self.assertTrue(linux_systemwide["package_gate"].startswith("unavailable"))
+        self.assertFalse(linux_systemwide["required"])
+        self.assertTrue(linux_systemwide["deferred"])
+        self.assertIn("outside the mandatory release scope", linux_systemwide["deferred_reason"])
+        self.assertTrue(linux_systemwide["package_gate"].startswith("deferred"))
+        self.assertEqual(linux_systemwide["build_only"], [])
         mac_systemwide = groups.CONTRACT["targets"]["macos-arm64"]["systemwide"]
         self.assertEqual(
             {stage["name"] for stage in mac_systemwide["required_payload_stages"]},
@@ -83,17 +97,66 @@ class LocalReleaseGroupsTests(unittest.TestCase):
         )
         self.assertTrue(all(stage["build_only_status"].startswith("unavailable")
                             for stage in mac_systemwide["required_payload_stages"]))
+        self.assertTrue(mac_systemwide["required"])
+        self.assertEqual([item["label"] for item in mac_systemwide["build_only"]], ["systemwide-daemon-cargo"])
         self.assertIn("macos-arm64.pkg", mac_systemwide["expected_distribution_artifacts"][0])
         self.assertIn("macos-universal.pkg", mac_systemwide["existing_package_route"])
         plugin_route = groups.CONTRACT["targets"]["linux-arm64"]["plugins"]["existing_package_route"]
         self.assertIn("not dist", plugin_route)
 
-    def test_dry_run_plans_every_required_group_for_both_targets(self):
+    def test_dry_run_exposes_all_groups_and_target_specific_requirements(self):
         plan = groups.render_plan(groups.TARGETS)
         self.assertEqual(set(plan["targets"]), set(groups.TARGETS))
         for spec in plan["targets"].values():
             self.assertEqual(set(spec), set(groups.REQUIRED_GROUPS))
         self.assertEqual(FakeProcess.commands, [])
+
+    def test_metadata_declarations_match_the_macOS_contract_baseline(self):
+        baseline = groups.CONTRACT["minimum_os"]["macos"]
+
+        def plist_minimum(path: Path) -> str:
+            data = plistlib.loads(path.read_bytes())
+            return data["LSMinimumSystemVersion"]
+
+        self.assertEqual(plist_minimum(groups.ROOT / "sotf/builds/macos/org.spinorama.sotf.plist"), baseline)
+        self.assertEqual(plist_minimum(groups.ROOT / "sotf-systemwide/swift/driver-hal/Info.plist"), baseline)
+
+        build_script = (groups.ROOT / "sotf-systemwide/scripts/build-systemwide.sh").read_text(encoding="utf-8")
+        plist_match = re.search(
+            r'cat > "\$APP_BUNDLE/Contents/Info\.plist" << EOF\n(.*?)\nEOF',
+            build_script,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(plist_match, "generated systemwide Info.plist template not found")
+        generated_plist = plistlib.loads(plist_match.group(1).encode("utf-8"))
+        self.assertEqual(generated_plist["LSMinimumSystemVersion"], baseline)
+        self.assertRegex(build_script, rf"--minimum-deployment-target\s+{re.escape(baseline)}\b")
+
+        package_swift = (groups.ROOT / "sotf-systemwide/swift/configbar/Package.swift").read_text(encoding="utf-8")
+        self.assertRegex(package_swift, rf"\.macOS\(\"{re.escape(baseline)}\"\)")
+
+    def test_linux_build_only_does_not_run_deferred_systemwide_group(self):
+        snapshot = clean_snapshot()
+        with tempfile.TemporaryDirectory() as temporary:
+            evidence = Path(temporary) / "evidence"
+            with (
+                patch.object(groups, "cargo_environment", return_value={"CARGO_HOME": "/mock/cargo"}),
+                patch.object(groups, "toolchain_identity", return_value={"cargo": "mock"}),
+                patch.object(groups, "_snapshot_provenance", side_effect=[snapshot, snapshot]),
+            ):
+                results, complete, report = groups.run_build_only(
+                    ["linux-arm64"], evidence,
+                    popen_factory=FakeProcess,
+                    cleanup=lambda _child: {"ok": True, "remaining": [], "errors": []},
+                    host_system="Linux", host_machine="aarch64",
+                )
+        self.assertFalse(complete)
+        self.assertEqual(report["status"], "INCOMPLETE")
+        self.assertEqual(report["required_groups_by_target"]["linux-arm64"], ["desktop", "tui", "roomeq", "plugins"])
+        self.assertEqual(report["deferred_groups_by_target"]["linux-arm64"], ["systemwide"])
+        self.assertNotIn("systemwide", {result.group for result in results})
+        self.assertTrue(FakeProcess.commands)
+        self.assertTrue(all("sotf-daemon" not in command for command in FakeProcess.commands))
 
     def test_build_only_uses_fresh_external_target_and_preserves_all_lock_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -120,6 +183,14 @@ class LocalReleaseGroupsTests(unittest.TestCase):
             self.assertTrue(all(str(target_dir) in command for command in FakeProcess.commands))
             self.assertTrue(all((evidence / result.log).exists() if not Path(result.log).is_absolute() else Path(result.log).exists()
                                 for result in results if result.log))
+            desktop_result = next(result for result in results if result.step == "desktop-cargo" and result.status == "built")
+            self.assertIsNotNone(desktop_result.argv)
+            self.assertIn("--profile", desktop_result.argv)
+            self.assertEqual(desktop_result.argv[desktop_result.argv.index("--profile") + 1], "dist")
+            self.assertEqual(desktop_result.argv[desktop_result.argv.index("--target") + 1], "aarch64-apple-darwin")
+            self.assertEqual(desktop_result.argv[desktop_result.argv.index("--features") + 1], "hal,onnx")
+            self.assertEqual(desktop_result.argv[desktop_result.argv.index("--target-dir") + 1], str(target_dir))
+            self.assertIn(desktop_result.argv, FakeProcess.commands)
             recorded_sources = report["sources_before"]["sources"]
             lock_hashes = [row["lock_sha256"] for row in recorded_sources.values()]
             lock_hashes.append(recorded_sources["autoeq"]["nested_lock_sha256"])

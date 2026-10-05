@@ -58,6 +58,11 @@ TARGETS = {
 }
 
 REQUIRED_GROUPS = ("desktop", "tui", "roomeq", "plugins", "systemwide")
+MANDATORY_GROUPS_BY_TARGET = {
+    "macos-arm64": REQUIRED_GROUPS,
+    "linux-arm64": ("desktop", "tui", "roomeq", "plugins"),
+}
+MACOS_MINIMUM_VERSION = "15.0"
 
 
 def _read_nih_features() -> tuple[str, ...]:
@@ -150,15 +155,20 @@ def build_contract() -> dict[str, object]:
                 "package_gate": "pending; build-only emits raw feature libraries, not validated plugin bundles",
             },
             "systemwide": {
-                "required": True,
-                "build_only": [
+                "required": is_macos,
+                "deferred": not is_macos,
+                "deferred_reason": (
+                    None if is_macos else
+                    "Linux systemwide is outside the mandatory release scope because the daemon falls back to NullDriver and system audio capture is not implemented; native PipeWire support is planned. Daemon builds/tests remain separately available, and no distribution package is required here."
+                ),
+                "build_only": ([
                     _step(
                         ".",
                         ["cargo", "build", "--manifest-path", "sotf-systemwide/Cargo.toml", "--profile", "dist", "--locked", "--offline", "--target", triple, "-p", "sotf-daemon", *( ["--features", "hal"] if is_macos else [] )],
                         f"sotf-systemwide/target/{triple}/dist/sotf-daemon",
                         "systemwide-daemon-cargo",
                     ),
-                ],
+                ] if is_macos else []),
                 "expected_distribution_artifacts": (
                     ["sotf-systemwide/target/daemon-dmg/sotf-systemwide-<version>-macos-arm64.pkg"]
                     if is_macos else []
@@ -182,7 +192,7 @@ def build_contract() -> dict[str, object]:
                         {
                             "name": "Linux systemwide distribution package",
                             "existing_recipe": None,
-                            "build_only_status": "unavailable; no Linux ARM64 distribution recipe",
+                            "build_only_status": "deferred; Linux systemwide is not a mandatory release group and has no ARM64 distribution recipe",
                         }
                     ]
                 ),
@@ -192,7 +202,7 @@ def build_contract() -> dict[str, object]:
                 ),
                 "package_gate": (
                     "pending; expected first-target artifact is macos-arm64.pkg; current route emits macos-universal.pkg and ad-hoc signs HAL payload; build-only includes daemon Cargo only, with Swift app/HAL stages unavailable"
-                    if is_macos else "unavailable; no Linux ARM64 systemwide distribution-package recipe"
+                    if is_macos else "deferred; Linux systemwide is outside the mandatory release scope and has no ARM64 distribution-package recipe"
                 ),
             },
         }
@@ -207,15 +217,24 @@ def build_contract() -> dict[str, object]:
             "dry_run": "plans every required group without executing commands",
             "complete_release_requires": "all expected distribution artifacts and required validators; build-only is never release-complete",
         },
-        "minimum_os": {"macos": "pending; do not infer from package recipe", "linux": "Ubuntu 24.04 qualification baseline; runtime acceptance pending"},
+        "minimum_os": {"macos": MACOS_MINIMUM_VERSION, "linux": "Ubuntu 24.04 qualification baseline; runtime acceptance pending"},
         "required_groups": list(REQUIRED_GROUPS),
+        "required_groups_by_target": {
+            target_name: list(MANDATORY_GROUPS_BY_TARGET[target_name])
+            for target_name in TARGETS
+        },
+        "deferred_groups_by_target": {
+            target_name: [group for group in REQUIRED_GROUPS if group not in MANDATORY_GROUPS_BY_TARGET[target_name]]
+            for target_name in TARGETS
+        },
         "deferred_platforms": ["windows", "android", "ios"],
         "targets": groups,
         "notes": [
             "macOS desktop/TUI features follow the current local build orchestrator hal,onnx selection; Linux follows build-linux.sh native defaults (ONNX disabled in its release builder).",
             "RoomEQ uses the existing dist profile and CLI feature. Other AutoEQ binaries are outside the RoomEQ required-artifact mapping.",
             "Plugin Cargo build-only compiles each NIH feature independently in dist profile. Existing plugin packaging recipes use release profile and cannot be substituted as dist qualification.",
-            "Systemwide macOS requires daemon, Swift menu-bar app, and Swift HAL driver payloads. Build-only covers daemon Cargo alone; Swift/package steps are explicitly unavailable pending isolated no-sign outputs. The current pkg filename says macos-universal although ARM64 universal-binary status is unverified; the first-target artifact contract uses macos-arm64. Linux systemwide has tests but no distribution package route.",
+            "Systemwide macOS requires daemon, Swift menu-bar app, and Swift HAL driver payloads. Build-only covers daemon Cargo alone; Swift/package steps are explicitly unavailable pending isolated no-sign outputs. The current pkg filename says macos-universal although ARM64 universal-binary status is unverified; the first-target artifact contract uses macos-arm64. Linux systemwide remains deferred because the daemon uses NullDriver and system audio capture is not implemented; PipeWire support is planned. Linux daemon builds/tests remain separately available, but no Linux systemwide distribution package is required or produced here.",
+            "Native macOS artifact qualification remains pending: owned executable minimum versions must not exceed 15.0; older minimum versions on compatible dependency libraries are allowed.",
         ],
     }
 
@@ -235,6 +254,7 @@ class BuildResult:
     log: str | None = None
     exit_code: int | None = None
     owned_group_cleanup: dict[str, object] | None = None
+    argv: list[str] | None = None
 
 
 def _sha256(path: Path) -> str:
@@ -340,6 +360,8 @@ def run_build_only(
         "status": "RUNNING",
         "release_complete": False,
         "source_root": str(ROOT),
+        "required_groups_by_target": CONTRACT["required_groups_by_target"],
+        "deferred_groups_by_target": CONTRACT["deferred_groups_by_target"],
         "toolchain": None,
         "cargo_environment": {
             "cargo_home": environment.get("CARGO_HOME"),
@@ -391,12 +413,12 @@ def run_build_only(
             all_complete = False
             continue
         if not _host_matches(target, system, machine):
-            for group in REQUIRED_GROUPS:
+            for group in MANDATORY_GROUPS_BY_TARGET[target]:
                 results.append(BuildResult(target, group, "host-check", "unavailable", f"requires {TARGETS[target]['host_system']} {TARGETS[target]['host_machine']}; host is {system} {machine}"))
             all_complete = False
             continue
 
-        for group in REQUIRED_GROUPS:
+        for group in MANDATORY_GROUPS_BY_TARGET[target]:
             spec = CONTRACT["targets"][target][group]  # type: ignore[index]
             for item in spec["build_only"]:
                 if stop_check():
@@ -476,7 +498,7 @@ def run_build_only(
                 duration = round(time.monotonic() - started, 3)
                 report.pop("active_command", None)
                 if child is not None and (stop_check() or exit_code == 130):
-                    results.append(BuildResult(target, group, str(item["label"]), "interrupted", f"Cargo interrupted after {duration}s", log=str(log_path), exit_code=exit_code, owned_group_cleanup=cleanup_report))
+                    results.append(BuildResult(target, group, str(item["label"]), "interrupted", f"Cargo interrupted after {duration}s", log=str(log_path), exit_code=exit_code, owned_group_cleanup=cleanup_report, argv=command))
                     all_complete = False
                     report["status"] = "INTERRUPTED"
                     sources_after = _snapshot_provenance(ROOT)
@@ -488,12 +510,12 @@ def run_build_only(
 
                 if child is None or exit_code != 0 or not cleanup_report.get("ok", False):
                     detail = f"Cargo exit {exit_code}; duration {duration}s; owned process cleanup={cleanup_report.get('ok')}"
-                    results.append(BuildResult(target, group, str(item["label"]), "failed", detail, log=str(log_path), exit_code=exit_code, owned_group_cleanup=cleanup_report))
+                    results.append(BuildResult(target, group, str(item["label"]), "failed", detail, log=str(log_path), exit_code=exit_code, owned_group_cleanup=cleanup_report, argv=command if child is not None else None))
                     all_complete = False
                     continue
 
                 if not actual_output.is_file() or actual_output.stat().st_size == 0:
-                    results.append(BuildResult(target, group, str(item["label"]), "failed", f"Cargo succeeded but fresh external-target output is missing/empty: {actual_output}", log=str(log_path), exit_code=exit_code, owned_group_cleanup=cleanup_report))
+                    results.append(BuildResult(target, group, str(item["label"]), "failed", f"Cargo succeeded but fresh external-target output is missing/empty: {actual_output}", log=str(log_path), exit_code=exit_code, owned_group_cleanup=cleanup_report, argv=command))
                     all_complete = False
                     continue
 
@@ -505,7 +527,7 @@ def run_build_only(
                 staged.mkdir(parents=True, exist_ok=True)
                 staged_file = staged / actual_output.name
                 shutil.copy2(actual_output, staged_file)
-                results.append(BuildResult(target, group, str(item["label"]), "built", f"fresh offline Cargo output; packaging/validation pending; duration {duration}s", str(staged_file), _sha256(staged_file), str(log_path), exit_code, cleanup_report))
+                results.append(BuildResult(target, group, str(item["label"]), "built", f"fresh offline Cargo output; packaging/validation pending; duration {duration}s", str(staged_file), _sha256(staged_file), str(log_path), exit_code, cleanup_report, command))
                 report["results"] = [result.__dict__ for result in results]
                 save_report()
 
