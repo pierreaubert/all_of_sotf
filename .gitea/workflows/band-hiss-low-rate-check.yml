@@ -1,0 +1,142 @@
+name: Focused BandSplit and Hiss low-rate activation check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      CI: 'true'
+      DISPOSABLE: '1'
+      PYTHONOPTIMIZE: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Linux plugin environment
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/band-hiss-low-rate
+          exec > >(tee target/release-gitea/band-hiss-low-rate/prerequisite.log) 2>&1
+          test ! -e /dev/snd
+          if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
+            echo 'Plugin artifacts require a disposable root-owned container'
+            exit 1
+          fi
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl unzip file build-essential clang mold cmake ninja-build pkg-config \
+            libssl-dev libasound2-dev libclang-dev libglib2.0-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libfontconfig1-dev libfreetype6-dev libwayland-dev \
+            libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxrandr-dev libxi-dev libxcursor-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libgl1-mesa-dri mesa-vulkan-drivers \
+            xvfb xauth dbus dbus-x11 xdotool imagemagick
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          if ! command -v just >/dev/null 2>&1 || [ "$(just --version)" != 'just 1.58.0' ]; then
+            cargo install just --version 1.58.0 --locked --force
+          fi
+          test "$(rustc --version | awk '{print $2}')" = '1.99.0'
+          test "$(just --version)" = 'just 1.58.0'
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          command -v mold xvfb-run dbus-run-session file unzip
+      - name: Checkout exact nine sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify artifact supervisor and source guards
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_nih_native_artifact_check scripts.release.test_band_hiss_low_rate_check \
+            2>&1 | tee target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+          grep -Fq 'Ran 9 tests in ' target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+          grep -Fxq 'OK' target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+      - name: Verify native low-rate state and strict CLAP validators
+        run: |
+          set -euo pipefail
+          export PATH="$CARGO_HOME/bin:$PATH"
+          python3 scripts/release/band_hiss_low_rate_check.py
+      - name: Upload native plugin artifacts and evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: band-hiss-low-rate-linux
+          path: |
+            checkout-sources.log
+            target/release-gitea/band-hiss-low-rate/
+          if-no-files-found: error
+  macos:
+    runs-on: m4
+    env:
+      CI: 'true'
+      RELEASE_MAC_NONHARDWARE: '1'
+      DISPOSABLE: '1'
+      PYTHONOPTIMIZE: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+      RUSTUP_TOOLCHAIN: 1.99.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require pinned Apple Silicon build prerequisites
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/band-hiss-low-rate
+          exec > >(tee target/release-gitea/band-hiss-low-rate/prerequisite.log) 2>&1
+          test "$(uname -s)" = Darwin
+          test "$(uname -m)" = arm64
+          python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+          for tool in rustc cargo just swift xcodebuild curl shasum ditto tar file; do
+            command -v "$tool"
+          done
+          echo "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" >> "$GITHUB_ENV"
+          echo "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" >> "$GITHUB_ENV"
+          test "$(rustc --version | awk '{print $2}')" = '1.99.0'
+          test "$(just --version)" = 'just 1.58.0'
+          swift --version
+          xcodebuild -version
+      - name: Checkout exact nine sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify macOS artifact supervisor and inventories
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_nih_macos_artifact_check scripts.release.test_band_hiss_low_rate_check \
+            2>&1 | tee target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+          grep -Fq 'Ran 9 tests in ' target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+          grep -Fxq 'OK' target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/band-hiss-low-rate/supervisor-preflight.log
+      - name: Verify native low-rate state and strict CLAP validators
+        run: |
+          set -euo pipefail
+          python3 scripts/release/band_hiss_low_rate_check.py
+      - name: Upload macOS plugin artifacts and evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: band-hiss-low-rate-macos
+          path: |
+            checkout-sources.log
+            target/release-gitea/band-hiss-low-rate/
+          if-no-files-found: error
