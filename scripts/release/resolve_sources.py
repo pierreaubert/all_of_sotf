@@ -33,12 +33,14 @@ ORDER = (
 )
 AUTOEQ_DEMO = Path("crates/autoeq-gpui-examples")
 
-# Resolve the Vello/GPUI GPU stack to one pinned Zed fork. Cargo's normal
-# metadata refresh can retain the older crates.io lock entries after patches
-# change, so these exact packages need an explicit update first.
+# Cargo's metadata refresh can retain older locked entries after manifest or
+# patch changes. Update these exact packages first while preserving the rest of
+# each tracked lockfile.
 TARGETED_UPDATES = {
     "autoeq": (("wgpu", "29.0.4", "29.0.3"), ("naga", "29.0.4", "29.0.3")),
-    "sotf-daw": (("naga", "29.0.4", "29.0.3"),),
+    "sotf-daw": (("naga", "29.0.4", "29.0.3"),
+                 ("serial_test", "3.5.0", "4.0.1")),
+    "sotf-systemwide": (("serial_test", "3.5.0", "4.0.1"),),
 }
 
 
