@@ -14,6 +14,31 @@ from scripts.release import all_features_candidate_check as gate
 
 
 class SupervisionTests(unittest.TestCase):
+    def test_run_passes_canonical_cargo_home_to_child(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace = root / "autoeq"
+            workspace.mkdir()
+            home = root / "home with spaces"
+            physical_cache = root / "cargo-cache"
+            home.mkdir()
+            physical_cache.mkdir()
+            (home / ".cargo").symlink_to(physical_cache, target_is_directory=True)
+            output = root / "evidence"
+            output.mkdir()
+            child = mock.Mock(pid=12345)
+            child.poll.return_value = 0
+            with (mock.patch.object(gate, "ROOT", root),
+                  mock.patch.dict(gate.os.environ, {"HOME": str(home)}, clear=True),
+                  mock.patch.object(gate, "toolchain_identity", return_value={"rustc": "test"}),
+                  mock.patch.object(gate, "cleanup", return_value=True),
+                  mock.patch.object(gate.subprocess, "Popen", return_value=child) as spawn):
+                result = gate.run("autoeq", [sys.executable, "-c", "pass"], output)
+
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(spawn.call_args.kwargs["env"]["CARGO_HOME"],
+                         str(physical_cache.resolve()))
+
     def test_run_records_toolchain_for_command_working_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

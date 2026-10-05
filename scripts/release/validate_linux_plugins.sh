@@ -4,6 +4,22 @@ set -uo pipefail
 
 format=${1:?select vst3 or clap}
 evidence=${2:?absolute artifact evidence directory required}
+requested_arch=${3:-$(uname -m)}
+case "$requested_arch" in
+    x86_64|amd64) target_arch=x86_64 ;;
+    aarch64|arm64) target_arch=aarch64 ;;
+    *) echo "unsupported Linux plugin architecture: $requested_arch" >&2; exit 2 ;;
+esac
+host_arch=$(uname -m)
+case "$host_arch" in
+    x86_64|amd64) host_arch=x86_64 ;;
+    aarch64|arm64) host_arch=aarch64 ;;
+    *) echo "unsupported Linux validator host architecture: $host_arch" >&2; exit 2 ;;
+esac
+[[ $target_arch == "$host_arch" ]] || {
+    printf 'Cannot run %s Linux validators on %s; use a native runner\n' "$target_arch" "$host_arch" >&2
+    exit 2
+}
 case "$format" in
     vst3) directory=dist/vst3-linux; extension=vst3 ;;
     clap) directory=dist/clap-linux; extension=clap ;;
@@ -34,9 +50,9 @@ for plugin in "${plugins[@]}"; do
     staged_plugin="$evidence/artifacts/sotf-daw/$plugin"
     log="$log_directory/$name.log"
     if [[ $format == vst3 ]]; then
-        if [[ ! -f "$staged_plugin/Contents/x86_64-linux/$name.so" ]]; then
-            printf 'VST3 bundle binary must match bundle name: %s/Contents/x86_64-linux/%s.so\n' \
-                "$staged_plugin" "$name" >"$log"
+        if [[ ! -f "$staged_plugin/Contents/${target_arch}-linux/$name.so" ]]; then
+            printf 'VST3 bundle binary must match target architecture and bundle name: %s/Contents/%s-linux/%s.so\n' \
+                "$staged_plugin" "$target_arch" "$name" >"$log"
             status=1
         else
             pluginval --validate "$staged_plugin" --strictness-level 5 --timeout-ms 30000 >"$log" 2>&1

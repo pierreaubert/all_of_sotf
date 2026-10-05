@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import signal
+import struct
 import sys
 import tempfile
 import threading
@@ -19,6 +22,11 @@ from scripts.release import nih_native_artifact_check as gate
 
 
 class NativeNihArtifactTests(unittest.TestCase):
+    @staticmethod
+    def elf_header(triplet: str) -> bytes:
+        machine = gate.ELF_MACHINES[triplet]
+        return b"\x7fELF\x02\x01\x01" + b"\x00" * 11 + struct.pack("<H", machine)
+
     def state(self) -> dict:
         return {
             "root_revision": "root-sha",
@@ -53,6 +61,71 @@ class NativeNihArtifactTests(unittest.TestCase):
         self.assertIn("before: AutoEQ nested demo Cargo.lock hash is missing",
                       gate.source_errors(before, copy.deepcopy(before), pins))
 
+    def test_expected_linux_triplet_must_match_native_host(self) -> None:
+        with mock.patch.object(gate.platform, "machine", return_value="aarch64"):
+            self.assertEqual(gate.native_linux_triplet(), "aarch64-linux")
+            with self.assertRaisesRegex(ValueError, "does not match expected target triplet"):
+                gate.native_linux_triplet("x86_64-linux")
+        with mock.patch.object(gate.platform, "machine", return_value="riscv64"):
+            with self.assertRaisesRegex(ValueError, "unsupported native Linux architecture"):
+                gate.native_linux_triplet()
+
+    def test_local_preflight_allows_native_disposable_container_without_ci(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True), \
+             mock.patch.object(gate.platform, "machine", return_value="x86_64"):
+            self.assertEqual(
+                gate.execution_preflight(True, system="Linux", disposable="1",
+                                         docker_marker=True, ci=None),
+                "x86_64-linux",
+            )
+
+    def test_preflight_rejects_host_non_disposable_and_legacy_without_ci(self) -> None:
+        cases = [
+            ({"system": "Darwin", "disposable": "1", "docker_marker": True}, "native Linux container"),
+            ({"system": "Linux", "disposable": "0", "docker_marker": True}, "DISPOSABLE=1"),
+            ({"system": "Linux", "disposable": "1", "docker_marker": False}, "DISPOSABLE=1"),
+        ]
+        for options, expected in cases:
+            with self.subTest(options=options), self.assertRaisesRegex(ValueError, expected):
+                gate.execution_preflight(True, **options)
+        with self.assertRaisesRegex(ValueError, "legacy Gitea mode requires CI=true"):
+            gate.execution_preflight(False, system="Linux", disposable="1",
+                                     docker_marker=True, ci=None, machine="x86_64")
+
+    def test_local_evidence_paths_are_external_and_fresh(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "mounted-output"
+            timestamp = "20261005T123456.000001Z"
+            output = gate.local_output_path(None, root, timestamp=timestamp)
+            self.assertEqual(output, root.resolve() / f"nih-native-linux-{timestamp}")
+            self.assertTrue((root / f"nih-native-linux-{timestamp}").is_dir())
+            with self.assertRaises(FileExistsError):
+                gate.local_output_path(None, root, timestamp=timestamp)
+
+            explicit = Path(directory) / "explicit-evidence"
+            self.assertEqual(gate.local_output_path(explicit, None), explicit.resolve())
+            with self.assertRaises(FileExistsError):
+                gate.local_output_path(explicit, None)
+            with self.assertRaisesRegex(ValueError, "outside the source checkout"):
+                gate.local_output_path(gate.ROOT / "target/local-evidence", None)
+            with self.assertRaisesRegex(ValueError, "absolute path"):
+                gate.local_output_path(Path("relative-evidence"), None)
+
+    def test_main_rejects_non_native_target_before_creating_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "evidence"
+            stderr = io.StringIO()
+            with (mock.patch.object(gate, "OUTPUT", output),
+                  mock.patch.object(gate.platform, "machine", return_value="x86_64"),
+                  mock.patch.object(gate.platform, "system", return_value="Linux"),
+                  mock.patch.object(Path, "exists", return_value=True),
+                  mock.patch.dict(os.environ, {"CI": "true", "DISPOSABLE": "1",
+                                               "SOTF_LINUX_TARGET_TRIPLET": "aarch64-linux"}),
+                  contextlib.redirect_stderr(stderr)):
+                self.assertEqual(gate.main([]), 2)
+            self.assertIn("does not match expected target triplet", stderr.getvalue())
+            self.assertFalse(output.exists())
+
     def test_artifact_inventory_rejects_missing_feature_duplicate_validator_and_hash_tamper(self) -> None:
         features = ["eq", *(f"fixture-{index}" for index in range(42))]
         with tempfile.TemporaryDirectory() as directory:
@@ -66,13 +139,15 @@ class NativeNihArtifactTests(unittest.TestCase):
             vst3 = staged / "vst3-linux"
             clap.mkdir(parents=True)
             vst3.mkdir()
+            triplet = gate.native_linux_triplet()
+            native_elf = self.elf_header(triplet)
             for feature in features:
                 (feature_logs / f"{feature}.log").write_text(f"Built {feature}\n")
-                (clap / f"sotf_{feature.replace('-', '_')}.clap").write_bytes(feature.encode())
+                (clap / f"sotf_{feature.replace('-', '_')}.clap").write_bytes(native_elf + feature.encode())
                 name = gate.vst3_name(feature)
-                bundle = vst3 / f"{name}.vst3/Contents/x86_64-linux"
+                bundle = vst3 / f"{name}.vst3/Contents" / triplet
                 bundle.mkdir(parents=True)
-                (bundle / f"{name}.so").write_bytes(feature.encode())
+                (bundle / f"{name}.so").write_bytes(native_elf + feature.encode())
             for kind, names in (("clap", sorted(path.stem for path in clap.glob("*.clap"))),
                                 ("vst3", sorted(path.stem for path in vst3.glob("*.vst3")))):
                 folder = logs / f"{kind}-validators"
@@ -92,6 +167,16 @@ class NativeNihArtifactTests(unittest.TestCase):
             (output / "artifact-inventory.json").write_text(json.dumps(records))
             with mock.patch.object(gate, "OUTPUT", output):
                 self.assertEqual(gate.artifact_results(features)["clap"]["count"], 43)
+                first_bundle_binary = vst3 / f"{gate.vst3_name(features[0])}.vst3/Contents" / triplet / f"{gate.vst3_name(features[0])}.so"
+                first_bundle_binary.write_bytes(self.elf_header("aarch64-linux" if triplet == "x86_64-linux" else "x86_64-linux"))
+                with self.assertRaisesRegex(ValueError, "imported plugin architecture"):
+                    gate.artifact_results(features)
+                first_bundle_binary.write_bytes(native_elf + features[0].encode())
+                first_clap = clap / f"sotf_{features[0].replace('-', '_')}.clap"
+                first_clap.write_bytes(self.elf_header("aarch64-linux" if triplet == "x86_64-linux" else "x86_64-linux"))
+                with self.assertRaisesRegex(ValueError, "imported plugin architecture"):
+                    gate.artifact_results(features)
+                first_clap.write_bytes(native_elf + features[0].encode())
                 missing_log = feature_logs / "eq.log"
                 missing_log.unlink()
                 with self.assertRaisesRegex(ValueError, "NIH build logs differ"):
@@ -103,10 +188,10 @@ class NativeNihArtifactTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "incomplete or failing"):
                     gate.artifact_results(features)
                 results.write_text(original)
-                (clap / "sotf_eq.clap").write_bytes(b"tampered")
+                (clap / "sotf_eq.clap").write_bytes(native_elf + b"tampered")
                 with self.assertRaisesRegex(ValueError, "size or SHA256 differs"):
                     gate.artifact_results(features)
-                (clap / "sotf_eq.clap").write_bytes(b"eq")
+                (clap / "sotf_eq.clap").write_bytes(native_elf + b"eq")
                 original_bundle = vst3 / "SOTF Eq.vst3"
                 renamed_bundle = vst3 / "SOTF Unlisted.vst3"
                 original_bundle.rename(renamed_bundle)

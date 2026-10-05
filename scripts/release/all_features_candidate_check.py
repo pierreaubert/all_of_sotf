@@ -18,7 +18,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.release.checkout_sources import read_manifest, root_layout_status
-from scripts.release.qa import source_issues, source_state, workspace_map
+from scripts.release.qa import cargo_environment, source_issues, source_state, workspace_map
 
 STOP = False
 
@@ -110,11 +110,13 @@ def run(name: str, argv: list[str], output: Path, cwd_name: str | None = None) -
         try:
             if STOP:
                 raise KeyboardInterrupt("stopped before process launch")
-            result["toolchain"] = toolchain_identity(command_cwd)
+            command_env = cargo_environment(command_cwd)
+            result["toolchain"] = toolchain_identity(command_cwd, command_env)
             if STOP:
                 raise KeyboardInterrupt("stopped during toolchain inspection")
             child = subprocess.Popen(argv, cwd=command_cwd, stdout=log,
-                                     stderr=subprocess.STDOUT, start_new_session=True)
+                                     stderr=subprocess.STDOUT, start_new_session=True,
+                                     env=command_env)
             result["owned_pgid"] = child.pid
             (output / "active-command.json").write_text(json.dumps(result, indent=2) + "\n")
             while child.poll() is None and not STOP:
@@ -134,7 +136,8 @@ def run(name: str, argv: list[str], output: Path, cwd_name: str | None = None) -
     return result
 
 
-def toolchain_identity(cwd: Path | None = None) -> dict[str, str | None]:
+def toolchain_identity(cwd: Path | None = None,
+                       environment: dict[str, str] | None = None) -> dict[str, str | None]:
     identity: dict[str, str | None] = {
         "platform": platform.platform(), "machine": platform.machine(),
         "working_directory": str((cwd or Path.cwd()).resolve()),
@@ -142,7 +145,7 @@ def toolchain_identity(cwd: Path | None = None) -> dict[str, str | None]:
     for name in ("rustc", "cargo"):
         try:
             result = subprocess.run([name, "--version"], check=True, capture_output=True,
-                                    text=True, timeout=5, cwd=cwd)
+                                    text=True, timeout=5, cwd=cwd, env=environment)
             identity[name] = result.stdout.strip()
         except (OSError, subprocess.SubprocessError) as error:
             identity[name] = f"unavailable: {error}"
@@ -166,10 +169,11 @@ def main(argv: list[str] | None = None) -> int:
     output.mkdir(parents=True, exist_ok=False)
     report: dict = {"status": "FAIL", "started_at": timestamp,
                     "platform": platform.platform(), "machine": platform.machine(),
-                    "toolchain": toolchain_identity(ROOT),
+                    "toolchain": toolchain_identity(ROOT, cargo_environment(ROOT)),
                     "cargo_net_offline": os.environ.get("CARGO_NET_OFFLINE"),
                     "scope": "nine locked all-feature/all-target checks plus independent AutoEQ GUI demo",
-                    "commands": [], "issues": [], "effective_cargo_home": os.environ.get("CARGO_HOME"),
+                    "commands": [], "issues": [],
+                    "effective_cargo_home": cargo_environment(ROOT).get("CARGO_HOME"),
                     "effective_cargo_target_dir": os.environ.get("CARGO_TARGET_DIR")}
     before = None
     root_before = None

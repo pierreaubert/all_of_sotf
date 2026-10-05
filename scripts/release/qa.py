@@ -320,14 +320,16 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
                     result["commands"].append(entry)
                     result["error"] = "gate interrupted before command launch"
                     raise GateInterrupted(result)
-                entry["toolchain"] = toolchain_identity(workspace)
+                command_env = cargo_environment(workspace)
+                entry["toolchain"] = toolchain_identity(workspace, command_env)
                 if STOP:
                     entry["status"] = "INTERRUPTED_BEFORE_LAUNCH"
                     result["commands"].append(entry)
                     result["error"] = "gate interrupted during toolchain inspection"
                     raise GateInterrupted(result)
                 process = subprocess.Popen(command, cwd=workspace, stdout=stream,
-                                           stderr=subprocess.STDOUT, start_new_session=True)
+                                           stderr=subprocess.STDOUT, start_new_session=True,
+                                           env=command_env)
                 entry["owned_pgid"] = process.pid
                 if report is not None and report_path is not None:
                     write_report(report_path, report)
@@ -407,7 +409,26 @@ def interrupted(_signum, _frame):
     STOP = True
 
 
-def toolchain_identity(cwd: Path | None = None) -> dict[str, str | None]:
+def cargo_environment(cwd: Path | None = None) -> dict[str, str]:
+    """Return the child environment with Cargo's cache path made canonical."""
+    environment = os.environ.copy()
+    cargo_home = environment.get("CARGO_HOME")
+    if cargo_home is None:
+        home = environment.get("HOME") or str(Path.home())
+        cargo_home = str(Path(home) / ".cargo")
+    if cargo_home:
+        path = Path(os.path.expanduser(cargo_home))
+        if not path.is_absolute():
+            path = (cwd or Path.cwd()) / path
+        environment["CARGO_HOME"] = str(path.resolve())
+    else:
+        # An explicitly empty CARGO_HOME is meaningful to the caller; preserve it.
+        environment["CARGO_HOME"] = cargo_home
+    return environment
+
+
+def toolchain_identity(cwd: Path | None = None,
+                       environment: dict[str, str] | None = None) -> dict[str, str | None]:
     identity: dict[str, str | None] = {
         "platform": platform.platform(), "machine": platform.machine(),
         "working_directory": str((cwd or Path.cwd()).resolve()),
@@ -415,7 +436,7 @@ def toolchain_identity(cwd: Path | None = None) -> dict[str, str | None]:
     for name in ("rustc", "cargo"):
         try:
             result = subprocess.run([name, "--version"], check=True, capture_output=True,
-                                    text=True, timeout=5, cwd=cwd)
+                                    text=True, timeout=5, cwd=cwd, env=environment)
             identity[name] = result.stdout.strip()
         except (OSError, subprocess.SubprocessError) as error:
             identity[name] = f"unavailable: {error}"
@@ -449,8 +470,9 @@ def main(argv: list[str] | None = None) -> int:
     output.mkdir(parents=True, exist_ok=False)
     names = args.workspace or list(workspace_map())
     report = {"started_at": timestamp, "phase": phase, "platform": platform_name,
-              "toolchain": toolchain_identity(ROOT), "cargo_net_offline": os.environ.get("CARGO_NET_OFFLINE"),
-              "effective_cargo_home": os.environ.get("CARGO_HOME"),
+              "toolchain": toolchain_identity(ROOT, cargo_environment(ROOT)),
+              "cargo_net_offline": os.environ.get("CARGO_NET_OFFLINE"),
+              "effective_cargo_home": cargo_environment(ROOT).get("CARGO_HOME"),
               "effective_cargo_target_dir": os.environ.get("CARGO_TARGET_DIR"),
               "status": "RUNNING", "require_clean": args.require_clean,
               "required_workspaces": names, "workspaces": [],

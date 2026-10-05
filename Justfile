@@ -7,6 +7,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 qa_evidence_root := env_var_or_default("SOTF_QA_EVIDENCE_ROOT", "/Volumes/home_tmp/cache/mbx/release-qa")
 export CARGO_NET_OFFLINE := env_var_or_default("CARGO_NET_OFFLINE", "true")
+export CARGO_HOME := `python3 -c 'import os; from pathlib import Path; home=os.environ.get("CARGO_HOME"); home=(str(Path(os.environ.get("HOME") or Path.home()) / ".cargo") if home is None else home); print(str((Path(os.path.expanduser(home)) if Path(os.path.expanduser(home)).is_absolute() else Path.cwd() / os.path.expanduser(home)).resolve()) if home else "")'`
 workspaces := "autoeq gpui-toolkit math-audio sofa-reader sotf sotf-capture sotf-daw sotf-systemwide symphonia-add-ons"
 
 # Aggregate gates run offline by default. Set CARGO_NET_OFFLINE=false only when

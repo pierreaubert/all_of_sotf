@@ -377,6 +377,31 @@ def test_darwin_host_uses_strict_macos_gate(monkeypatch):
 
 
 class ToolchainEvidenceTests(unittest.TestCase):
+    def test_cargo_environment_resolves_default_symlinked_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home with spaces"
+            physical_cache = root / "cache" / ".cargo"
+            home.mkdir()
+            physical_cache.mkdir(parents=True)
+            (home / ".cargo").symlink_to(physical_cache, target_is_directory=True)
+            with mock.patch.dict(qa.os.environ, {"HOME": str(home)}, clear=True):
+                environment = qa.cargo_environment(root)
+                self.assertEqual(environment["CARGO_HOME"], str(physical_cache.resolve()))
+                self.assertTrue(physical_cache.is_dir())
+
+    def test_cargo_environment_resolves_explicit_symlink_without_mutating_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            physical_cache = root / "physical cache"
+            physical_cache.mkdir()
+            alias = root / "cargo alias"
+            alias.symlink_to(physical_cache, target_is_directory=True)
+            with mock.patch.dict(qa.os.environ, {"CARGO_HOME": str(alias)}):
+                environment = qa.cargo_environment(root)
+                self.assertEqual(environment["CARGO_HOME"], str(physical_cache.resolve()))
+                self.assertTrue(alias.is_symlink())
+
     def test_identity_queries_versions_from_workspace_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
@@ -412,13 +437,22 @@ class ToolchainEvidenceTests(unittest.TestCase):
             child.poll.return_value = 0
             source = {"sotf": {"revision": "abc123", "dirty": False,
                                "lock_sha256": "same-lock"}}
-            with (mock.patch.object(qa, "workspace_map", return_value={"sotf": object()}),
+            home = root / "home"
+            physical_cache = root / "physical-cache"
+            home.mkdir()
+            physical_cache.mkdir()
+            (home / ".cargo").symlink_to(physical_cache, target_is_directory=True)
+            with (mock.patch.dict(qa.os.environ, {"HOME": str(home)}, clear=True),
+                  mock.patch.object(qa, "workspace_map", return_value={"sotf": object()}),
                   mock.patch.object(qa, "source_state", return_value=source),
                   mock.patch.object(qa, "commands_for", return_value=[("cargo", "check")]),
                   mock.patch.object(qa, "toolchain_identity", return_value=toolchain),
-                  mock.patch.object(qa.subprocess, "Popen", return_value=child),
+                  mock.patch.object(qa.subprocess, "Popen", return_value=child) as spawn,
                   mock.patch.object(qa, "clean_group", return_value={"ok": True, "remaining": []})):
                 result = qa.run_workspace("sotf", "check", root, output, False)
 
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["commands"][0]["toolchain"], toolchain)
+        spawn.assert_called_once()
+        self.assertEqual(spawn.call_args.kwargs["env"]["CARGO_HOME"],
+                         str(physical_cache.resolve()))
