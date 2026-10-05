@@ -1,0 +1,66 @@
+name: AUD145 independent analytical reference generation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      CI: 'true'
+      DISPOSABLE: '1'
+      PYTHONOPTIMIZE: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare private disposable Python environment
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" = 0
+          test ! -e /dev/snd
+          export ORIGINAL_CARGO_HOME="${CARGO_HOME:-/root/.cargo}"
+          export ORIGINAL_RUSTUP_HOME="${RUSTUP_HOME:-/root/.rustup}"
+          case "$ORIGINAL_CARGO_HOME:$ORIGINAL_RUSTUP_HOME" in /*:/*) ;; *) exit 1 ;; esac
+          mkdir -p target/release-gitea/aud145-private-home/.cargo
+          echo "HOME=$PWD/target/release-gitea/aud145-private-home" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$ORIGINAL_CARGO_HOME" >> "$GITHUB_ENV"
+          echo "RUSTUP_HOME=$ORIGINAL_RUSTUP_HOME" >> "$GITHUB_ENV"
+          python3 -c 'import sys; assert sys.version_info >= (3, 11) and sys.flags.optimize == 0'
+      - name: Checkout exact nine sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/aud145-preflight
+          python3 scripts/release/checkout_sources.py 2>&1 | tee target/release-gitea/aud145-preflight/checkout-sources.log
+      - name: Verify reviewed owned supervisor
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/aud145-preflight
+          python3 -m unittest -v scripts.release.test_nih_native_artifact_check \
+            2>&1 | tee target/release-gitea/aud145-preflight/supervisor.log
+          grep -Fq 'Ran 7 tests in ' target/release-gitea/aud145-preflight/supervisor.log
+          grep -Fxq 'OK' target/release-gitea/aud145-preflight/supervisor.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/aud145-preflight/supervisor.log
+      - name: Generate and verify new analytical data without Cargo
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          for name in ('aud145_analytical_r2.py', 'aud145_compare_r2.py', 'aud145_analytical_generation.py'):
+              ast.parse((Path('scripts/release') / name).read_text())
+          PY
+          python3 scripts/release/aud145_analytical_generation.py
+      - name: Upload full reference and guard evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aud145-independent-analytical-r2-linux
+          path: |
+            target/release-gitea/aud145-preflight/
+            target/release-gitea/aud145-analytical-r2/
+          if-no-files-found: error
