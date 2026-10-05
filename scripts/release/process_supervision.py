@@ -10,10 +10,19 @@ import sys
 import time
 
 def members(pgid: int) -> list[dict[str, str]]:
-    listing = subprocess.run(
-        ["ps", "-axo", "pid=,ppid=,pgid=,stat="], text=True,
-        capture_output=True, check=True, timeout=5,
-    )
+    # A loaded native linker can delay ps. A timeout supplies no inventory,
+    # so retry inspection before deciding that cleanup cannot be verified.
+    # Every attempt remains bounded; malformed output and hard errors propagate.
+    for attempt in range(3):
+        try:
+            listing = subprocess.run(
+                ["ps", "-axo", "pid=,ppid=,pgid=,stat="], text=True,
+                capture_output=True, check=True, timeout=5,
+            )
+            break
+        except subprocess.TimeoutExpired:
+            if attempt == 2:
+                raise
     found = []
     for line in listing.stdout.splitlines():
         fields = line.split()
