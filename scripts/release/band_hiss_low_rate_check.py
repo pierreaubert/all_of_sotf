@@ -37,7 +37,7 @@ TESTS = (
     ("sotf-plugin-band-split", "tests", "test_dynamic_frequency_validation_is_transactional"),
 )
 FEATURES = (("band-split", "sotf_band_split"), ("hiss-reducer", "sotf_hiss_reducer"))
-EXPECTED_DAW = "834d68a4abb2568378a22acae07194983d4f09b5"
+EXPECTED_DAW = "2f70527c5e3e984eb56673d1faf0bd8cedf60d52"
 
 
 def exact_positive(log: str, full_name: str) -> bool:
