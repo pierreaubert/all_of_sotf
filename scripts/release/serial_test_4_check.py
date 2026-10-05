@@ -36,10 +36,10 @@ REQUIRED = {
         "aud143_populated_lr24_reset_has_zero_allocations_control",
     },
     "daemon-concurrent": {
-        "tests::testkit_concurrent_add_plugin_preserves_both_mutations",
+        "tests::ipc_safety_tests::testkit_concurrent_add_plugin_preserves_both_mutations",
     },
     "daemon-rack": {
-        "tests::testkit_live_rack_state_promotion_and_graph_reorder_preserve_node_state",
+        "tests::ipc_safety_tests::testkit_live_rack_state_promotion_and_graph_reorder_preserve_node_state",
     },
 }
 
