@@ -42,7 +42,7 @@ jobs:
         run: |
           set -o pipefail
           python3 -m unittest scripts.release.test_nih_macos_artifact_check scripts.release.test_invalid_clock_check -v 2>&1 | tee invalid-clock-preflight.log
-          grep -Eq '^Ran 11 tests' invalid-clock-preflight.log
+          grep -Eq '^Ran 13 tests' invalid-clock-preflight.log
           grep -Eq '^OK$' invalid-clock-preflight.log
           ! grep -Eq 'skipped|FAIL|ERROR' invalid-clock-preflight.log
           grep -q 'test_stop_before_launch_does_not_spawn' invalid-clock-preflight.log
@@ -109,7 +109,7 @@ jobs:
         run: |
           set -o pipefail
           python3 -m unittest scripts.release.test_nih_native_artifact_check scripts.release.test_invalid_clock_check -v 2>&1 | tee invalid-clock-preflight.log
-          grep -Eq '^Ran 11 tests' invalid-clock-preflight.log
+          grep -Eq '^Ran 13 tests' invalid-clock-preflight.log
           grep -Eq '^OK$' invalid-clock-preflight.log
           ! grep -Eq 'skipped|FAIL|ERROR' invalid-clock-preflight.log
           grep -q 'test_stop_before_launch_does_not_spawn' invalid-clock-preflight.log
