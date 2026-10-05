@@ -20,7 +20,8 @@ from scripts.release import nih_macos_artifact_check as mac_owned
 FORK = "5d2ccb99a7a470919b62eae46e37bb0d6aa61a48"
 OFFICIAL = "59089955e1c8698c6b83b2e6ab6ebceff825ff96"
 TREE = "27da67b5939ffaef2c11a86055f7cc45063de3af"
-DIFF = "fdce51c87312de854ef2e521c4e2d67ab407d1e409a22b7b43b98329ac80a045"
+OFFICIAL_MANIFEST_BLOB = "08866e238d14bfb4dfae4f1a190d74902354b9b9"
+FORK_MANIFEST_BLOB = "08f7122fa47aa2601bba8c9b45b6b3ecdb94a148"
 owned = mac_owned if sys.platform == "darwin" else linux_owned
 OUTPUT = ROOT / "target/release-gitea/cosmic-standalone"
 
@@ -46,6 +47,9 @@ def fork_state(repo: Path) -> dict:
         "tree": git(repo, "rev-parse", "HEAD^{tree}"),
         "worktree_entries": git(repo, "status", "--porcelain", "--untracked-files=all", "--ignored").splitlines(),
         "source_diff_sha256": sha(subprocess.check_output(["git", "-C", str(repo), "diff", "--binary", OFFICIAL, FORK])),
+        "changed_paths": git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", OFFICIAL, FORK).splitlines(),
+        "official_manifest_blob": git(repo, "rev-parse", f"{OFFICIAL}:Cargo.toml"),
+        "fork_manifest_blob": git(repo, "rev-parse", f"{FORK}:Cargo.toml"),
         "license_apache": git(repo, "rev-parse", "HEAD:LICENSE-APACHE"),
         "license_mit": git(repo, "rev-parse", "HEAD:LICENSE-MIT"),
     }
@@ -79,8 +83,8 @@ def main() -> int:
         repo = output / "cosmic-source"
         state = fork_state(repo)
         report["fork_before"] = state
-        if (state["head"], state["parent"], state["tree"], state["source_diff_sha256"]) != (FORK, OFFICIAL, TREE, DIFF):
-            raise ValueError("fork revision, ancestry, tree, or source diff differs")
+        if (state["head"], state["parent"], state["tree"], state["changed_paths"], state["official_manifest_blob"], state["fork_manifest_blob"]) != (FORK, OFFICIAL, TREE, ["Cargo.toml"], OFFICIAL_MANIFEST_BLOB, FORK_MANIFEST_BLOB):
+            raise ValueError("fork revision, ancestry, tree, or manifest delta differs")
         if state["worktree_entries"] or state["license_apache"] != "6f756351aae24b479e6a9418c1f08a8b7a991076" or state["license_mit"] != "db6aab15cf8c6a1f348650f0c6fa4df60d026a89":
             raise ValueError("fork cleanliness or licenses differ")
         if (repo / "Cargo.lock").exists():
