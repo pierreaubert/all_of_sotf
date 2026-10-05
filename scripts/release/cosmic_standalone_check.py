@@ -20,7 +20,8 @@ from scripts.release import nih_macos_artifact_check as mac_owned
 
 FORK = "85e4064fcb17aba26b774f1481ce3ba1fa29c57f"
 MANIFEST_CHILD = "5d2ccb99a7a470919b62eae46e37bb0d6aa61a48"
-DIFF_SHA256 = "46132500237785c6d73812fc4d8e75e6eb5f6662e1ac79a0ba4979747bd9151e"
+OFFICIAL_SHAPE_BLOB = "04f221951ea103223aecdd3999c7c738be47f72e"
+FORK_SHAPE_BLOB = "481fb4dd662c417616afa515490237a5bd904e00"
 OFFICIAL = "59089955e1c8698c6b83b2e6ab6ebceff825ff96"
 TREE = "bce7f98f2adc7a8c07f646dc05070423b5c8e9ac"
 OFFICIAL_MANIFEST_BLOB = "08866e238d14bfb4dfae4f1a190d74902354b9b9"
@@ -50,7 +51,8 @@ def fork_state(repo: Path) -> dict:
         "grandparent": git(repo, "rev-parse", "HEAD^^"),
         "tree": git(repo, "rev-parse", "HEAD^{tree}"),
         "worktree_entries": git(repo, "status", "--porcelain", "--untracked-files=all", "--ignored").splitlines(),
-        "source_diff_sha256": sha(subprocess.check_output(["git", "-C", str(repo), "diff", "--binary", OFFICIAL, FORK])),
+        "official_shape_blob": git(repo, "rev-parse", f"{OFFICIAL}:src/shape.rs"),
+        "fork_shape_blob": git(repo, "rev-parse", f"{FORK}:src/shape.rs"),
         "changed_paths": git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", OFFICIAL, FORK).splitlines(),
         "official_manifest_blob": git(repo, "rev-parse", f"{OFFICIAL}:Cargo.toml"),
         "fork_manifest_blob": git(repo, "rev-parse", f"{FORK}:Cargo.toml"),
@@ -65,7 +67,8 @@ def verify_initial_fork(state: dict) -> None:
         "tree": TREE, "changed_paths": ["Cargo.toml", "src/shape.rs"],
         "official_manifest_blob": OFFICIAL_MANIFEST_BLOB,
         "fork_manifest_blob": FORK_MANIFEST_BLOB,
-        "source_diff_sha256": DIFF_SHA256,
+        "official_shape_blob": OFFICIAL_SHAPE_BLOB,
+        "fork_shape_blob": FORK_SHAPE_BLOB,
         "license_apache": "6f756351aae24b479e6a9418c1f08a8b7a991076",
         "license_mit": "db6aab15cf8c6a1f348650f0c6fa4df60d026a89",
         "worktree_entries": [],

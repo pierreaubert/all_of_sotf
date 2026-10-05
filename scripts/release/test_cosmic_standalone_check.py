@@ -53,18 +53,23 @@ class CosmicEvidenceTests(unittest.TestCase):
             "changed_paths": ["Cargo.toml", "src/shape.rs"],
             "official_manifest_blob": gate.OFFICIAL_MANIFEST_BLOB,
             "fork_manifest_blob": gate.FORK_MANIFEST_BLOB,
-            "source_diff_sha256": gate.DIFF_SHA256,
+            "official_shape_blob": gate.OFFICIAL_SHAPE_BLOB,
+            "fork_shape_blob": gate.FORK_SHAPE_BLOB,
             "license_apache": "6f756351aae24b479e6a9418c1f08a8b7a991076",
             "license_mit": "db6aab15cf8c6a1f348650f0c6fa4df60d026a89",
             "worktree_entries": [],
         }
         gate.verify_initial_fork(valid)
-        for field in ("head", "parent", "tree", "source_diff_sha256", "license_apache", "license_mit"):
+        for field in ("head", "parent", "grandparent", "tree", "official_manifest_blob",
+                      "fork_manifest_blob", "official_shape_blob", "fork_shape_blob",
+                      "license_apache", "license_mit"):
             changed = dict(valid, **{field: "0" * len(valid[field])})
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, field):
                 gate.verify_initial_fork(changed)
         with self.assertRaisesRegex(ValueError, "worktree_entries"):
             gate.verify_initial_fork(dict(valid, worktree_entries=["?? modified.rs"]))
+        with self.assertRaisesRegex(ValueError, "changed_paths"):
+            gate.verify_initial_fork(dict(valid, changed_paths=["Cargo.toml", "src/shape.rs", "src/other.rs"]))
 
     def test_lfs_pointer_rejected_as_payload(self) -> None:
         pointer = b"version https://git-lfs.github.com/spec/v1\noid sha256:" + b"0" * 64 + b"\nsize 999\n"
