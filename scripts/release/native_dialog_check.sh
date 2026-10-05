@@ -5,7 +5,7 @@ set -uo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd) || exit 1
 cd "$root" || exit 1
 export PATH="/usr/libexec:$PATH"
-output="$root/release-native-dialog-evidence-linux"
+output="${RFD_EVIDENCE_DIR:-$root/target/release-gitea/native-dialog-linux}"
 mkdir -p "$output/screenshots" "$output/logs" || exit 1
 cp scripts/release/sources.json "$output/sources.json" || exit 1
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/sotf-rfd.XXXXXXXX") || exit 1
@@ -20,7 +20,7 @@ if [[ -z ${DISPLAY:-} || -z ${DBUS_SESSION_BUS_ADDRESS:-} ]]; then
     echo 'A real X display and D-Bus session are required' >&2
     exit 1
 fi
-for tool in xdotool import convert xdg-desktop-portal xdg-desktop-portal-gtk timeout; do
+for tool in xdotool import convert xdg-desktop-portal xdg-desktop-portal-gtk; do
     command -v "$tool" >/dev/null 2>&1 || { echo "Missing $tool" >&2; exit 1; }
 done
 
@@ -76,14 +76,16 @@ abort_dialog() {
 }
 
 run_dialog() {
-    local mode=$1 expected=$2 window= attempt mean painted=0
+    local mode=$1 expected=$2 window= attempt=0 mean painted=0
     printf '%s %s %s\n' "$binary" "$mode" "$expected" >>"$output/commands.txt"
-    timeout 75 "$binary" "$mode" "$expected" >"$output/logs/$mode.log" 2>&1 &
+    "$binary" "$mode" "$expected" >"$output/logs/$mode.log" 2>&1 &
     active_pid=$!
-    for attempt in {1..100}; do
+    while :; do
         window=$(xdotool search --onlyvisible --name "^SOTF RFD $mode$" 2>/dev/null | head -n 1)
         [[ -n $window ]] && break
         if ! kill -0 "$active_pid" 2>/dev/null; then break; fi
+        ((attempt += 1))
+        if (( attempt % 150 == 0 )); then echo "Waiting for visible $mode dialog"; fi
         sleep 0.2
     done
     if [[ -z $window ]]; then
@@ -94,13 +96,17 @@ run_dialog() {
     fi
     printf 'visible-window-id=%s\n' "$window" >"$output/logs/$mode-window.log"
     xdotool windowactivate --sync "$window" || { abort_dialog; return 1; }
-    for attempt in {1..50}; do
+    attempt=0
+    while :; do
         import -window "$window" "$output/screenshots/.$mode-probe.png" || { abort_dialog; return 1; }
         mean=$(convert "$output/screenshots/.$mode-probe.png" -colorspace gray -format '%[fx:mean]' info:) || { abort_dialog; return 1; }
         if awk -v mean="$mean" 'BEGIN { exit !(mean > 0.12) }'; then
             painted=1
             break
         fi
+        if ! kill -0 "$active_pid" 2>/dev/null; then abort_dialog; return 1; fi
+        ((attempt += 1))
+        if (( attempt % 150 == 0 )); then echo "Waiting for painted $mode dialog"; fi
         sleep 0.2
     done
     rm -f "$output/screenshots/.$mode-probe.png"

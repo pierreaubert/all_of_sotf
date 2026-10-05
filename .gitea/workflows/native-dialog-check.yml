@@ -43,8 +43,9 @@ jobs:
   linux:
     if: inputs.platform == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
     env:
+      CI: 'true'
+      DISPOSABLE: '1'
       RUSTUP_TOOLCHAIN: 1.99.0
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
@@ -56,8 +57,8 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="/usr/libexec:$PATH"
-          mkdir -p release-native-dialog-evidence-linux
-          exec > >(tee release-native-dialog-evidence-linux/prerequisite.log) 2>&1
+          mkdir -p target/release-gitea/native-dialog-linux
+          exec > >(tee target/release-gitea/native-dialog-linux/prerequisite.log) 2>&1
           if [ ! -f /.dockerenv ] || [ "$(id -u)" -ne 0 ]; then
             echo 'Native dialog setup requires a disposable root-owned container'
             exit 1
@@ -88,23 +89,22 @@ jobs:
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
         run: |
-          set -o pipefail
+          set -euo pipefail
           python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
           python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify native dialog supervisor and guards
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_rfd_pollster_check \
+            2>&1 | tee target/release-gitea/native-dialog-linux/supervisor-preflight.log
+          grep -Fq 'Ran 5 tests in ' target/release-gitea/native-dialog-linux/supervisor-preflight.log
+          grep -Fxq 'OK' target/release-gitea/native-dialog-linux/supervisor-preflight.log
       - name: Exercise real native portal dialogs
         run: |
           set -euo pipefail
           export PATH="$CARGO_HOME/bin:$PATH"
           export PATH="/usr/libexec:$PATH"
-          export XDG_CURRENT_DESKTOP=GNOME
-          export XDG_SESSION_TYPE=x11
-          xvfb-run -a -s '-screen 0 2560x1600x24' \
-            dbus-run-session -- bash -c '
-              openbox >release-native-dialog-evidence-linux/openbox.log 2>&1 &
-              xdg-desktop-portal-gtk >release-native-dialog-evidence-linux/portal-gtk.log 2>&1 &
-              xdg-desktop-portal >release-native-dialog-evidence-linux/portal.log 2>&1 &
-              bash scripts/release/native_dialog_check.sh
-            '
+          python3 scripts/release/rfd_pollster_check.py
       - name: Upload native dialog evidence
         if: always()
         uses: actions/upload-artifact@v3
@@ -112,5 +112,5 @@ jobs:
           name: release-native-dialog-linux
           path: |
             checkout-sources.log
-            release-native-dialog-evidence-linux/
-          if-no-files-found: warn
+            target/release-gitea/native-dialog-linux/
+          if-no-files-found: error
