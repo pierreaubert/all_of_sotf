@@ -1,0 +1,135 @@
+name: AUD132 canonical first-stage diagnostic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      CI: 'true'
+      DISPOSABLE: '1'
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      PYTHONOPTIMIZE: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare private Linux compiler environment
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" = 0
+          test ! -e /dev/snd
+          mkdir -p target/release-gitea/aud132-stage-preflight target/release-gitea/aud132-stage-private-home/.cargo
+          echo "HOME=$PWD/target/release-gitea/aud132-stage-private-home" >> "$GITHUB_ENV"
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang mold cmake ninja-build pkg-config \
+            libssl-dev libasound2-dev libclang-dev libglib2.0-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libfontconfig1-dev libfreetype6-dev
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          rustup toolchain install 1.99.0 --profile minimal
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Checkout exact nine sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee target/release-gitea/aud132-stage-preflight/checkout.log
+      - name: Verify Linux owned supervisor
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_nih_native_artifact_check \
+            2>&1 | tee target/release-gitea/aud132-stage-preflight/supervisor.log
+          grep -Fq 'Ran 7 tests in ' target/release-gitea/aud132-stage-preflight/supervisor.log
+          grep -Fxq 'OK' target/release-gitea/aud132-stage-preflight/supervisor.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/aud132-stage-preflight/supervisor.log
+          python3 -m unittest -v scripts.release.test_aud132_stage_check \
+            2>&1 | tee target/release-gitea/aud132-stage-preflight/inventory.log
+          grep -Fq 'Ran 1 test in ' target/release-gitea/aud132-stage-preflight/inventory.log
+          grep -Fxq 'OK' target/release-gitea/aud132-stage-preflight/inventory.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/aud132-stage-preflight/inventory.log
+      - name: Capture first-stage vectors
+        run: |
+          set -euo pipefail
+          python3 scripts/release/aud132_stage_check.py
+      - name: Upload all diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aud132-stage-linux
+          path: |
+            target/release-gitea/aud132-stage-preflight/
+            target/release-gitea/aud132-stage/
+          if-no-files-found: error
+
+  macos:
+    runs-on: m4
+    env:
+      CI: 'true'
+      DISPOSABLE: '1'
+      RUSTUP_TOOLCHAIN: 1.99.0
+      PYTHONOPTIMIZE: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare private Mac compiler environment
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/aud132-stage-preflight target/release-gitea/aud132-stage-private-home/.cargo
+          ORIGINAL_CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+          ORIGINAL_RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+          case "$ORIGINAL_CARGO_HOME:$ORIGINAL_RUSTUP_HOME" in /*:/*) ;; *) exit 1 ;; esac
+          echo "HOME=$PWD/target/release-gitea/aud132-stage-private-home" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$ORIGINAL_CARGO_HOME" >> "$GITHUB_ENV"
+          echo "RUSTUP_HOME=$ORIGINAL_RUSTUP_HOME" >> "$GITHUB_ENV"
+          echo "$ORIGINAL_CARGO_HOME/bin" >> "$GITHUB_PATH"
+          export PATH="$ORIGINAL_CARGO_HOME/bin:$PATH"
+          rustup toolchain install 1.99.0 --profile minimal
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+      - name: Checkout exact nine sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee target/release-gitea/aud132-stage-preflight/checkout.log
+      - name: Verify Mac owned supervisor
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_nih_macos_artifact_check \
+            2>&1 | tee target/release-gitea/aud132-stage-preflight/supervisor.log
+          grep -Fq 'Ran 7 tests in ' target/release-gitea/aud132-stage-preflight/supervisor.log
+          grep -Fxq 'OK' target/release-gitea/aud132-stage-preflight/supervisor.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/aud132-stage-preflight/supervisor.log
+          python3 -m unittest -v scripts.release.test_aud132_stage_check \
+            2>&1 | tee target/release-gitea/aud132-stage-preflight/inventory.log
+          grep -Fq 'Ran 1 test in ' target/release-gitea/aud132-stage-preflight/inventory.log
+          grep -Fxq 'OK' target/release-gitea/aud132-stage-preflight/inventory.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/aud132-stage-preflight/inventory.log
+      - name: Capture first-stage vectors
+        run: |
+          set -euo pipefail
+          python3 scripts/release/aud132_stage_check.py
+      - name: Upload all diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: aud132-stage-macos
+          path: |
+            target/release-gitea/aud132-stage-preflight/
+            target/release-gitea/aud132-stage/
+          if-no-files-found: error
