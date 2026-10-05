@@ -87,9 +87,16 @@ def source_errors(before: dict, after: dict, pins: dict[str, str]) -> list[str]:
     return errors
 
 
-def parse_tests(log: str, required: set[str]) -> dict:
-    passed = re.findall(r"^test (\S+) \.\.\. ok$", log, re.MULTILINE)
-    ignored = re.findall(r"^test (\S+) \.\.\. ignored", log, re.MULTILINE)
+HOST_MANUAL_IGNORE = {
+    "analyzer_loudness_monitor::true_peak_tests::pre_aud123_published_kernel_cpu_control":
+        "manual matched pre-AUD123 kernel-only CPU control; run with --ignored --nocapture",
+}
+
+
+def parse_tests(log: str, required: set[str], allowed_ignored: dict[str, str] | None = None) -> dict:
+    passed = re.findall(r"^test (\S+)(?: - should panic)? \.\.\. ok$", log, re.MULTILINE)
+    ignored = re.findall(r"^test (\S+) \.\.\. ignored, ([^\n]+)$", log, re.MULTILINE)
+    expected_ignored = allowed_ignored or {}
     summaries = re.findall(r"^test result: (\w+)\. (\d+) passed; (\d+) failed; (\d+) ignored;", log, re.MULTILINE)
     if len(summaries) != 1:
         raise ValueError("expected exactly one libtest summary")
@@ -98,9 +105,11 @@ def parse_tests(log: str, required: set[str]) -> dict:
         raise ValueError("libtest summary is failing or incomplete")
     if int(count) != len(passed) or len(passed) != len(set(passed)):
         raise ValueError("named passing tests do not match summary")
-    if not required.issubset(set(passed)) or ignored:
-        raise ValueError(f"required tests missing or ignored: {sorted(required - set(passed))}, {ignored}")
-    return {"passed": passed, "ignored": ignored, "summary": summaries[0]}
+    if not required.issubset(set(passed)) or dict(ignored) != expected_ignored or len(ignored) != len(expected_ignored):
+        raise ValueError(f"required tests missing or ignored inventory differs: {sorted(required - set(passed))}, {ignored}")
+    limits = (["Pre-AUD123 kernel-only CPU control is manual and remains unqualified by this gate"]
+              if expected_ignored else [])
+    return {"passed": passed, "ignored": ignored, "summary": summaries[0], "coverage_limits": limits}
 
 
 def main() -> int:
@@ -137,7 +146,8 @@ def main() -> int:
             entry = OWNED.run_owned(name, argv, report, os.environ.copy())
             if entry["status"] != "PASS":
                 raise ValueError(f"{name} failed")
-            entry["tests"] = parse_tests(Path(entry["log"]).read_text(errors="replace"), REQUIRED[name])
+            entry["tests"] = parse_tests(Path(entry["log"]).read_text(errors="replace"), REQUIRED[name],
+                                         HOST_MANUAL_IGNORE if name == "host-lib" else {})
             save(report)
     except (Exception, KeyboardInterrupt) as error:
         report["failure"] = str(error)
