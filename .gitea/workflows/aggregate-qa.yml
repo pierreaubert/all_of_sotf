@@ -16,10 +16,15 @@ on:
         type: choice
         options: [all, macos, linux]
         default: all
+      workspace:
+        description: Optional focused Linux workspace; all retains full phase scope
+        type: choice
+        options: [all, math-audio]
+        default: all
 
 jobs:
   macos:
-    if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos')
+    if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos') && (github.event_name != 'workflow_dispatch' || (inputs.workspace || 'all') == 'all')
     runs-on: m4
     steps:
       - uses: actions/checkout@v4
@@ -114,11 +119,20 @@ jobs:
       - name: Validate Linux release sources
         env:
           RELEASE_PHASE: ${{ github.event.inputs.phase || 'metadata' }}
+          RELEASE_WORKSPACE: ${{ github.event.inputs.workspace || 'all' }}
         run: |
           set -euo pipefail
+          release_workspace_args=()
+          if [ "$RELEASE_WORKSPACE" = math-audio ]; then
+            release_workspace_args=(--workspace math-audio)
+            echo 'Focused Math Audio QA only; full release coverage remains incomplete.'
+          elif [ "$RELEASE_WORKSPACE" != all ]; then
+            echo 'Unsupported focused workspace' >&2
+            exit 2
+          fi
           QA_PRIVATE_HOME="$PWD/target/release-gitea/private-home"
           QA_RUNTIME_DIR="$PWD/target/release-gitea/private-runtime"
-          mkdir -p "$QA_PRIVATE_HOME/config" "$QA_PRIVATE_HOME/cache" "$QA_RUNTIME_DIR/systemwide"
+          mkdir -p "$QA_PRIVATE_HOME/.cargo" "$QA_PRIVATE_HOME/config" "$QA_PRIVATE_HOME/cache" "$QA_RUNTIME_DIR/systemwide"
           chmod 700 "$QA_PRIVATE_HOME" "$QA_RUNTIME_DIR" "$QA_RUNTIME_DIR/systemwide"
           env HOME="$QA_PRIVATE_HOME" XDG_CONFIG_HOME="$QA_PRIVATE_HOME/config" \
             XDG_CACHE_HOME="$QA_PRIVATE_HOME/cache" XDG_RUNTIME_DIR="$QA_RUNTIME_DIR" \
@@ -126,7 +140,7 @@ jobs:
             JACK_DEFAULT_SERVER=no-jack JACK_NO_START_SERVER=1 \
             SOTF_SYSTEMWIDE_RUNTIME_DIR="$QA_RUNTIME_DIR/systemwide" \
             SOTF_SYSTEMWIDE_STATE_PATH="$QA_RUNTIME_DIR/systemwide/state.json" \
-            python3 scripts/release/qa.py "$RELEASE_PHASE" --platform linux --require-clean --output target/release-gitea/aggregate-qa-linux
+            python3 scripts/release/qa.py "$RELEASE_PHASE" --platform linux --require-clean --output target/release-gitea/aggregate-qa-linux "${release_workspace_args[@]}"
       - name: Upload Linux evidence
         if: always()
         uses: actions/upload-artifact@v3
