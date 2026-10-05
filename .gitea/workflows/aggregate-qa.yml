@@ -21,7 +21,6 @@ jobs:
   macos:
     if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos')
     runs-on: m4
-    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,7 +36,12 @@ jobs:
       - name: Validate macOS release sources
         env:
           RELEASE_PHASE: ${{ github.event.inputs.phase || 'metadata' }}
-        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform macos --require-clean --output target/release-gitea/aggregate-qa-macos
+        run: |
+          if [ "$RELEASE_PHASE" = qa ]; then
+            echo 'The full macOS QA recipe includes physical audio/HAL tests. Run the reviewed mac-safe-full-qa lane; physical coverage remains INCOMPLETE.' >&2
+            exit 1
+          fi
+          python3 scripts/release/qa.py "$RELEASE_PHASE" --platform macos --require-clean --output target/release-gitea/aggregate-qa-macos
       - name: Upload macOS evidence
         if: always()
         uses: actions/upload-artifact@v3
@@ -46,16 +50,59 @@ jobs:
           path: |
             checkout-sources.log
             target/release-gitea/aggregate-qa-macos/
-          if-no-files-found: warn
+          if-no-files-found: error
 
   linux:
     if: (github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve') && (github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux')
-    runs-on: x86:linux:host
-    timeout-minutes: 360
+    runs-on: ubuntu-latest
+    needs: scripts
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      CI: 'true'
+      DISPOSABLE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Prepare private audio-device-free Linux container
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" -eq 0
+          test ! -e /dev/snd
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang mold cmake ninja-build pkg-config \
+            libssl-dev libasound2-dev libjack-jackd2-dev libclang-dev \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libfontconfig1-dev \
+            libfreetype6-dev libwayland-dev libx11-xcb-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libxcb1-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxrandr-dev libxi-dev \
+            libxcursor-dev libegl1-mesa-dev libgl1-mesa-dev libgl1-mesa-dri
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          rustup component add clippy --toolchain 1.99.0
+          rustup component add rustfmt --toolchain 1.99.0
+          if ! command -v just >/dev/null 2>&1; then
+            cargo install just --version 1.58.0 --locked
+          fi
+          test "$(just --version | awk '{print $2}')" = 1.58.0
+          if ! cargo nextest --version >/dev/null 2>&1; then
+            cargo install cargo-nextest --version 0.9.143 --locked
+          fi
+          test "$(cargo nextest --version | awk '{print $2}')" = 0.9.143
+          cargo fmt --version
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
       - name: Require Python 3.11 or newer
         run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
       - name: Checkout pinned sibling repositories
@@ -67,7 +114,19 @@ jobs:
       - name: Validate Linux release sources
         env:
           RELEASE_PHASE: ${{ github.event.inputs.phase || 'metadata' }}
-        run: python3 scripts/release/qa.py "$RELEASE_PHASE" --platform linux --require-clean --output target/release-gitea/aggregate-qa-linux
+        run: |
+          set -euo pipefail
+          QA_PRIVATE_HOME="$PWD/target/release-gitea/private-home"
+          QA_RUNTIME_DIR="$PWD/target/release-gitea/private-runtime"
+          mkdir -p "$QA_PRIVATE_HOME/config" "$QA_PRIVATE_HOME/cache" "$QA_RUNTIME_DIR/systemwide"
+          chmod 700 "$QA_PRIVATE_HOME" "$QA_RUNTIME_DIR" "$QA_RUNTIME_DIR/systemwide"
+          env HOME="$QA_PRIVATE_HOME" XDG_CONFIG_HOME="$QA_PRIVATE_HOME/config" \
+            XDG_CACHE_HOME="$QA_PRIVATE_HOME/cache" XDG_RUNTIME_DIR="$QA_RUNTIME_DIR" \
+            PULSE_SERVER="unix:$QA_RUNTIME_DIR/no-pulse" PIPEWIRE_REMOTE=no-pipewire \
+            JACK_DEFAULT_SERVER=no-jack JACK_NO_START_SERVER=1 \
+            SOTF_SYSTEMWIDE_RUNTIME_DIR="$QA_RUNTIME_DIR/systemwide" \
+            SOTF_SYSTEMWIDE_STATE_PATH="$QA_RUNTIME_DIR/systemwide/state.json" \
+            python3 scripts/release/qa.py "$RELEASE_PHASE" --platform linux --require-clean --output target/release-gitea/aggregate-qa-linux
       - name: Upload Linux evidence
         if: always()
         uses: actions/upload-artifact@v3
@@ -76,12 +135,11 @@ jobs:
           path: |
             checkout-sources.log
             target/release-gitea/aggregate-qa-linux/
-          if-no-files-found: warn
+          if-no-files-found: error
 
   scripts:
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve'
     runs-on: x86:linux:host
-    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -92,22 +150,31 @@ jobs:
         run: just --list
       - name: Validate release maintenance scripts
         run: |
-          set -o pipefail
+          set -euo pipefail
           python3 -m venv .release-venv
           .release-venv/bin/python -m pip install pytest tomlkit
           PATH="$PWD/.release-venv/bin:$PATH" bash scripts/bacon/scripts-check.sh 2>&1 | tee scripts-qa.log
+      - name: Prove aggregate command ownership and test inventory
+        run: |
+          set -euo pipefail
+          .release-venv/bin/python -m pytest -q scripts/release/test_qa.py \
+            -k 'test_inventory or test_interruption_before_spawn or test_owned_descendant or test_sigterm_during_live_owned_command or test_rejected_upmixer_experiments or test_gpui_release_validator' \
+            2>&1 | tee aggregate-supervisor-preflight.log
+          grep -Eq '^8 passed' aggregate-supervisor-preflight.log
+          ! grep -Eq ' skipped| xfailed| xpassed' aggregate-supervisor-preflight.log
       - name: Upload script QA evidence
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: aggregate-scripts-qa
-          path: scripts-qa.log
-          if-no-files-found: warn
+          path: |
+            scripts-qa.log
+            aggregate-supervisor-preflight.log
+          if-no-files-found: error
 
   dependency-graph:
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.phase != 'resolve'
     runs-on: x86:linux:host
-    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,7 +202,6 @@ jobs:
   resolve:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.phase == 'resolve'
     runs-on: x86:linux:host
-    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:
