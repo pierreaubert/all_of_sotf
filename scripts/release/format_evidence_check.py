@@ -98,10 +98,18 @@ def format_errors(before: dict, after: dict, pins: dict[str, str], patches: list
         if workspace == "autoeq" and (not old.get("nested_lock_sha256") or not new.get("nested_lock_sha256")):
             errors.append("AutoEQ nested Cargo.lock missing")
         if paths:
-            expected_root_dirty.add(f"m {workspace}")
-    # checkout_sources.git() strips only the beginning of its multiline output;
-    # gitlink worktree modifications therefore appear as `m name` (or ` m name`).
-    actual_root_dirty = {line[1:] if line.startswith(" m ") else line for line in current["unexpected"]}
+            expected_root_dirty.add(workspace)
+    # A formatted child reports an unstaged gitlink worktree change as ` M name`.
+    # checkout_sources.git() may strip the first line's leading space. Match only
+    # these two exact spellings, so staged changes, untracked paths and other
+    # submodule states cannot be mistaken for inventoried rustfmt output.
+    actual_root_dirty: set[str] = set()
+    for line in current["unexpected"]:
+        owner = line[3:] if line.startswith(" M ") else line[2:] if line.startswith("M ") else ""
+        if owner not in pins or line not in (f" M {owner}", f"M {owner}"):
+            errors.append(f"unrecognized root gitlink status: {line!r}")
+        else:
+            actual_root_dirty.add(owner)
     if actual_root_dirty != expected_root_dirty or len(current["unexpected"]) != len(expected_root_dirty):
         errors.append("root contains unexpected, staged, or missing dirty gitlinks")
     return errors

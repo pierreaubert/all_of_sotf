@@ -25,7 +25,7 @@ def fixture(changed: str | None = None) -> tuple[dict, dict, list[dict]]:
     after = copy.deepcopy(before)
     patches = [{"workspace": name, "paths": [], "tracked_blobs": []} for name in NAMES]
     if changed:
-        after["root_layout"]["unexpected"] = [f"m {changed}"]
+        after["root_layout"]["unexpected"] = [f" M {changed}"]
         after["workspaces"][changed]["dirty"] = True
         patch = next(item for item in patches if item["workspace"] == changed)
         patch["paths"] = ["src/lib.rs"]
@@ -42,7 +42,7 @@ class FormatGuardTests(unittest.TestCase):
 
     def test_all_nine_formatting_owners_require_exact_dirty_gitlinks(self):
         before, after, patches = fixture()
-        after["root_layout"]["unexpected"] = ["m " + NAMES[0], *(" m " + name for name in NAMES[1:])]
+        after["root_layout"]["unexpected"] = ["M " + NAMES[0], *(" M " + name for name in NAMES[1:])]
         for name in NAMES:
             after["workspaces"][name]["dirty"] = True
             patch = next(item for item in patches if item["workspace"] == name)
@@ -55,13 +55,17 @@ class FormatGuardTests(unittest.TestCase):
 
     def test_root_and_staged_gitlink_changes_rejected(self):
         before, after, patches = fixture("sotf-capture")
-        for unexpected in (["M  sotf-capture"], ["m sotf-capture", "M  docs/plan.md"],
-                           ["?? rogue/"], []):
+        for unexpected in (["M  sotf-capture"], ["m sotf-capture"],
+                           ["M  docs/plan.md"], ["?? rogue/"],
+                           ["AM sotf-capture"], [" M rogue"], []):
             candidate = copy.deepcopy(after)
             candidate["root_layout"]["unexpected"] = unexpected
             self.assertTrue(format_errors(before, candidate, PINS, patches))
         candidate = copy.deepcopy(after)
         candidate["root_revision"] = "new-root"
+        self.assertTrue(format_errors(before, candidate, PINS, patches))
+        candidate = copy.deepcopy(after)
+        candidate["root_layout"]["unexpected"] = [" M sotf-capture", " M sotf-capture"]
         self.assertTrue(format_errors(before, candidate, PINS, patches))
 
     def test_unpinned_child_and_wrong_owner_rejected(self):
