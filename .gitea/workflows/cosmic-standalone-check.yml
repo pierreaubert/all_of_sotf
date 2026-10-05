@@ -1,0 +1,135 @@
+name: Cosmic compatibility fork standalone check
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, linux, macos]
+        default: all
+
+jobs:
+  linux:
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      DISPOSABLE: "1"
+      RUSTUP_TOOLCHAIN: "1.99.0"
+      PYTHONOPTIMIZE: "0"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable compiler and prerequisites
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" -eq 0
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git git-lfs ca-certificates curl python3 build-essential pkg-config libfontconfig1-dev libfreetype-dev
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          git lfs version
+          rustup toolchain install 1.99.0 --profile minimal
+          test "$(rustc +1.99.0 --version | awk '{print $2}')" = 1.99.0
+      - name: Checkout exact nine sibling revisions
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: python3 scripts/release/checkout_sources.py
+      - name: Prove reviewed Linux owned-process supervisor
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/cosmic-standalone
+          python3 -m unittest -v scripts.release.test_nih_native_artifact_check 2>&1 | tee target/release-gitea/cosmic-standalone/supervisor-preflight.log
+          grep -Eq '^Ran 7 tests in ' target/release-gitea/cosmic-standalone/supervisor-preflight.log
+          grep -Fxq 'OK' target/release-gitea/cosmic-standalone/supervisor-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/cosmic-standalone/supervisor-preflight.log
+      - name: Prove upstream inventory and real LFS fixture guards
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_cosmic_standalone_check 2>&1 | tee target/release-gitea/cosmic-standalone/inventory-preflight.log
+          grep -Eq '^Ran 5 tests in ' target/release-gitea/cosmic-standalone/inventory-preflight.log
+          grep -Fxq 'OK' target/release-gitea/cosmic-standalone/inventory-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/cosmic-standalone/inventory-preflight.log
+      - name: Clone immutable Cosmic fork
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/cosmic-standalone
+          GIT_TERMINAL_PROMPT=0 git clone https://github.com/pierreaubert/cosmic-text.git target/release-gitea/cosmic-standalone/cosmic-source
+          git -C target/release-gitea/cosmic-standalone/cosmic-source checkout --detach 85e4064fcb17aba26b774f1481ce3ba1fa29c57f
+      - name: Compile and run upstream default/all-feature layout tests
+        run: python3 scripts/release/cosmic_standalone_check.py
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: cosmic-standalone-linux
+          path: target/release-gitea/cosmic-standalone/
+          if-no-files-found: error
+
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: m4
+    env:
+      CI: "true"
+      DISPOSABLE: "1"
+      RUSTUP_TOOLCHAIN: "1.99.0"
+      PYTHONOPTIMIZE: "0"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require pinned toolchain and Python
+        run: |
+          set -euo pipefail
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+          git lfs version
+      - name: Checkout exact nine sibling revisions
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: python3 scripts/release/checkout_sources.py
+      - name: Prove reviewed macOS owned-process supervisor
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/cosmic-standalone
+          python3 -m unittest -v scripts.release.test_nih_macos_artifact_check 2>&1 | tee target/release-gitea/cosmic-standalone/supervisor-preflight.log
+          grep -Eq '^Ran 7 tests in ' target/release-gitea/cosmic-standalone/supervisor-preflight.log
+          grep -Fxq 'OK' target/release-gitea/cosmic-standalone/supervisor-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/cosmic-standalone/supervisor-preflight.log
+      - name: Prove upstream inventory and real LFS fixture guards
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_cosmic_standalone_check 2>&1 | tee target/release-gitea/cosmic-standalone/inventory-preflight.log
+          grep -Eq '^Ran 5 tests in ' target/release-gitea/cosmic-standalone/inventory-preflight.log
+          grep -Fxq 'OK' target/release-gitea/cosmic-standalone/inventory-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/cosmic-standalone/inventory-preflight.log
+      - name: Clone immutable Cosmic fork
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/cosmic-standalone
+          GIT_TERMINAL_PROMPT=0 git clone https://github.com/pierreaubert/cosmic-text.git target/release-gitea/cosmic-standalone/cosmic-source
+          git -C target/release-gitea/cosmic-standalone/cosmic-source checkout --detach 85e4064fcb17aba26b774f1481ce3ba1fa29c57f
+      - name: Compile and run upstream default/all-feature layout tests
+        run: python3 scripts/release/cosmic_standalone_check.py
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: cosmic-standalone-macos
+          path: target/release-gitea/cosmic-standalone/
+          if-no-files-found: error
