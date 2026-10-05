@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import ctypes
 from pathlib import Path
 import re
 import shutil
@@ -18,113 +17,81 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.buildbot.ci_matrix import workspace_map
-from scripts.release.checkout_sources import read_manifest
+from scripts.release.checkout_sources import read_manifest, root_layout_status
+from scripts.release.process_supervision import clean_group, enable_subreaper
 from scripts.release.qa import ROOT, source_issues, source_state
 
-
-def enable_subreaper() -> None:
-    if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
-        raise OSError(ctypes.get_errno(), "PR_SET_CHILD_SUBREAPER failed")
+INTERRUPTED = False
 
 
-def group_members(pgid: int) -> list[dict]:
-    proc = subprocess.run(["ps", "-eo", "pid=,ppid=,pgid=,stat="], text=True,
-                          capture_output=True, check=True, timeout=3)
-    members = []
-    for line in proc.stdout.splitlines():
-        fields = line.split()
-        if len(fields) == 4 and int(fields[2]) == pgid:
-            members.append({"pid": int(fields[0]), "ppid": int(fields[1]), "state": fields[3]})
-    return members
+def write_report(path: Path, report: dict) -> None:
+    pending = path.with_suffix(".pending")
+    pending.write_text(json.dumps(report, indent=2) + "\n")
+    pending.replace(path)
 
 
-def reap_children() -> None:
-    while True:
-        try:
-            pid, _ = os.waitpid(-1, os.WNOHANG)
-        except ChildProcessError:
-            return
-        if pid == 0:
-            return
-
-
-def stop_group(child: subprocess.Popen) -> tuple[bool, list[dict], list[str]]:
-    errors: list[str] = []
-
-    def inspect() -> list[dict] | None:
-        try:
-            return group_members(child.pid)
-        except Exception as exc:
-            errors.append(f"owned group inspection failed: {exc}")
-            return None
-
-    for signum in (signal.SIGTERM, signal.SIGKILL):
-        members = inspect()
-        if members == [] and not errors:
-            return True, [], []
-        try:
-            os.killpg(child.pid, signum)
-        except ProcessLookupError:
-            pass
-        except OSError as exc:
-            errors.append(f"owned group signal failed: {exc}")
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            try:
-                reap_children()
-            except OSError as exc:
-                errors.append(f"owned child reap failed: {exc}")
-            members = inspect()
-            if members == [] and not errors:
-                return True, [], []
-            time.sleep(0.1)
-    try:
-        reap_children()
-    except OSError as exc:
-        errors.append(f"owned child reap failed: {exc}")
-    members = inspect()
-    return members == [] and not errors, members or [], errors
-
-
-def run(name: str, argv: list[str], cwd: Path, log: Path, env: dict[str, str]) -> dict:
+def run(name: str, argv: list[str], cwd: Path, log: Path, env: dict[str, str],
+        report: dict, report_path: Path) -> dict:
+    if INTERRUPTED:
+        raise KeyboardInterrupt("interrupted before next command")
     with log.open("w", encoding="utf-8") as stream:
-        child = subprocess.Popen(argv, cwd=cwd, env=env, stdout=stream,
-                                 stderr=subprocess.STDOUT, start_new_session=True)
-        interrupted = False
+        child = None
+        code = 130
+        entry = {"name": name, "argv": argv, "exit_code": None, "status": "RUNNING",
+                 "log": str(log.relative_to(ROOT))}
         try:
-            deadline = time.monotonic() + 3600
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    code = 124
-                    break
+            report["active_command"] = entry
+            write_report(report_path, report)
+            child = subprocess.Popen(argv, cwd=cwd, env=env, stdout=stream,
+                                     stderr=subprocess.STDOUT, start_new_session=True)
+            entry["owned_pgid"] = child.pid
+            write_report(report_path, report)
+            heartbeat = time.monotonic() + 30
+            while not INTERRUPTED:
                 try:
-                    code = child.wait(timeout=min(30, remaining))
+                    code = child.wait(timeout=1)
                     break
                 except subprocess.TimeoutExpired:
-                    print(f"[{name}] still running; owned leader PID {child.pid}", flush=True)
-        except KeyboardInterrupt:
-            code = 130
-            interrupted = True
+                    if time.monotonic() >= heartbeat:
+                        print(f"[{name}] still running; owned leader PID {child.pid}", flush=True)
+                        heartbeat = time.monotonic() + 30
+        except OSError as exc:
+            entry["start_error"] = str(exc)
+            code = 127
         finally:
-            cleanup_ok, survivors, cleanup_errors = stop_group(child)
-    return {"name": name, "argv": argv, "exit_code": code, "cleanup_ok": cleanup_ok,
-            "interrupted": interrupted,
-            "owned_group_survivors": survivors, "cleanup_inspection_errors": cleanup_errors,
-            "log": str(log.relative_to(ROOT))}
+            if child is not None:
+                cleanup = clean_group(child)
+            else:
+                cleanup = {"ok": False, "remaining": [], "errors": ["command did not start"]}
+            report.pop("active_command", None)
+        entry.update({"exit_code": code, "cleanup_ok": cleanup["ok"],
+                      "interrupted": INTERRUPTED, "owned_group_survivors": cleanup["remaining"],
+                      "cleanup_inspection_errors": cleanup["errors"],
+                      "status": "PASS" if code == 0 and cleanup["ok"] and not INTERRUPTED else "FAIL"})
+        report["commands"].append(entry)
+        write_report(report_path, report)
+        return entry
 
 
 def main() -> int:
-    def interrupted(signum: int, _frame: object) -> None:
-        raise KeyboardInterrupt(f"signal {signum}")
+    def interrupted(_signum: int, _frame: object) -> None:
+        global INTERRUPTED
+        INTERRUPTED = True
 
     signal.signal(signal.SIGINT, interrupted)
     signal.signal(signal.SIGTERM, interrupted)
-    evidence = ROOT / "generated-roomeq-evidence"
-    evidence.mkdir(exist_ok=True)
+    evidence = ROOT / "target/release-gitea/generated-roomeq-evidence"
+    evidence.mkdir(parents=True, exist_ok=False)
+    report_path = evidence / "report.json"
+    root_revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                                            text=True).strip()
+    manifest_sha256 = hashlib.sha256((ROOT / "scripts/release/sources.json").read_bytes()).hexdigest()
     before = source_state(ROOT, list(workspace_map()), "linux")
     (evidence / "sources-before.json").write_text(json.dumps(before, indent=2))
-    commands: list[dict] = []
+    report: dict = {"status": "RUNNING", "root_revision": root_revision,
+                    "sources_manifest_sha256": manifest_sha256,
+                    "sources_before": before, "commands": [], "artifacts": [], "error": None}
+    write_report(report_path, report)
     files: list[dict] = []
     error = None
     try:
@@ -134,6 +101,11 @@ def main() -> int:
         if source_issues(before, before, require_clean=True):
             raise RuntimeError("source checkout is not clean")
         _, _, pinned = read_manifest(ROOT / "scripts/release/sources.json")
+        layout = root_layout_status(ROOT, pinned)
+        report["root_layout_before"] = layout
+        write_report(report_path, report)
+        if layout["missing"] or layout["unexpected"] or layout["allowed_siblings"]:
+            raise RuntimeError(f"root layout is not exact pinned gitlinks: {layout}")
         for name, revision in pinned.items():
             if before[name]["revision"] != revision:
                 raise RuntimeError(f"{name} checkout does not match pinned revision")
@@ -162,8 +134,8 @@ def main() -> int:
                 argv = ["cargo", "run", "--locked", "--features", "cli", "--bin", "roomeq",
                         "--release", "--", "--config", str(config), "--override-config",
                         str(overrides / f"optimiser-{method}.json"), "--output", str(artifact)]
-                result = run(f"generate-{method}", argv, autoeq, evidence / f"generate-{method}.log", env)
-                commands.append(result)
+                result = run(f"generate-{method}", argv, autoeq,
+                             evidence / f"generate-{method}.log", env, report, report_path)
                 if result["exit_code"] or not result["cleanup_ok"]:
                     raise RuntimeError(f"AutoEQ {method} generator failed")
             # Retain the complete native bundles, including metadata and WAV
@@ -188,6 +160,8 @@ def main() -> int:
                 if hashlib.sha256(copied.read_bytes()).hexdigest() != digest:
                     raise RuntimeError(f"graph handoff changed DSP bytes: {path.name}")
                 files.append({"name": path.name, "bytes": len(data), "sha256": digest})
+            report["artifacts"] = files
+            write_report(report_path, report)
             if sorted(path.name for path in graph_handoff.rglob("*.json")) != [
                     "dsp_fir.json", "dsp_iir.json", "dsp_mixed.json"]:
                 raise RuntimeError("expected exactly three generated DSP JSON artifacts")
@@ -197,23 +171,40 @@ def main() -> int:
                     "plugin_artifact::tests::all_generated_room_eq_files_build_graphs", "--",
                     "--ignored", "--exact"]
             result = run("systemwide-graph", argv, ROOT / "sotf-systemwide",
-                         evidence / "systemwide-graph.log", env)
-            commands.append(result)
+                         evidence / "systemwide-graph.log", env, report, report_path)
             if result["exit_code"] or not result["cleanup_ok"]:
                 raise RuntimeError("generated RoomEQ graph test failed")
             text = (evidence / "systemwide-graph.log").read_text(errors="replace")
             if not re.search(r"test plugin_artifact::tests::all_generated_room_eq_files_build_graphs \.\.\. ok", text):
                 raise RuntimeError("named ignored graph test did not run and pass")
-            if not re.search(r"test result: ok\. 1 passed; 0 failed", text):
+            if not re.search(r"test result: ok\. 1 passed; 0 failed; 0 ignored;", text):
                 raise RuntimeError("graph test summary did not report one passing test")
     except (KeyboardInterrupt, Exception) as exc:
         error = str(exc)
-    after = source_state(ROOT, list(workspace_map()), "linux")
-    issues = source_issues(before, after, require_clean=True)
-    (evidence / "sources-after.json").write_text(json.dumps(after, indent=2))
-    report = {"status": "PASS" if not error and not issues else "FAIL",
-              "error": error, "source_issues": issues, "commands": commands, "artifacts": files}
-    (evidence / "report.json").write_text(json.dumps(report, indent=2))
+    issues = []
+    after = None
+    layout_after = None
+    try:
+        after = source_state(ROOT, list(workspace_map()), "linux")
+        issues.extend(source_issues(before, after, require_clean=True))
+        (evidence / "sources-after.json").write_text(json.dumps(after, indent=2))
+        if INTERRUPTED:
+            issues.append("job interrupted")
+        if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                                   text=True).strip() != root_revision:
+            issues.append("root revision changed")
+        if hashlib.sha256((ROOT / "scripts/release/sources.json").read_bytes()).hexdigest() != manifest_sha256:
+            issues.append("source manifest changed")
+        if "pinned" in locals():
+            layout_after = root_layout_status(ROOT, pinned)
+            if layout_after["missing"] or layout_after["unexpected"] or layout_after["allowed_siblings"]:
+                issues.append(f"root layout changed: {layout_after}")
+    except Exception as exc:
+        issues.append(f"final source guard failed: {exc}")
+    report.update({"status": "PASS" if not error and not issues else "FAIL",
+                   "error": error, "source_issues": issues, "sources_after": after,
+                   "root_layout_after": layout_after, "artifacts": files})
+    write_report(report_path, report)
     print(json.dumps(report, indent=2), flush=True)
     return 0 if report["status"] == "PASS" else 1
 
