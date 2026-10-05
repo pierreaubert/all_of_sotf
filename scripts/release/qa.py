@@ -320,6 +320,12 @@ def run_workspace(name: str, phase: str, root: Path, output: Path, require_clean
                     result["commands"].append(entry)
                     result["error"] = "gate interrupted before command launch"
                     raise GateInterrupted(result)
+                entry["toolchain"] = toolchain_identity(workspace)
+                if STOP:
+                    entry["status"] = "INTERRUPTED_BEFORE_LAUNCH"
+                    result["commands"].append(entry)
+                    result["error"] = "gate interrupted during toolchain inspection"
+                    raise GateInterrupted(result)
                 process = subprocess.Popen(command, cwd=workspace, stdout=stream,
                                            stderr=subprocess.STDOUT, start_new_session=True)
                 entry["owned_pgid"] = process.pid
@@ -401,6 +407,21 @@ def interrupted(_signum, _frame):
     STOP = True
 
 
+def toolchain_identity(cwd: Path | None = None) -> dict[str, str | None]:
+    identity: dict[str, str | None] = {
+        "platform": platform.platform(), "machine": platform.machine(),
+        "working_directory": str((cwd or Path.cwd()).resolve()),
+    }
+    for name in ("rustc", "cargo"):
+        try:
+            result = subprocess.run([name, "--version"], check=True, capture_output=True,
+                                    text=True, timeout=5, cwd=cwd)
+            identity[name] = result.stdout.strip()
+        except (OSError, subprocess.SubprocessError) as error:
+            identity[name] = f"unavailable: {error}"
+    return identity
+
+
 def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
@@ -411,6 +432,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--platform", choices=("macos", "linux", "windows"))
     parser.add_argument("--workspace", action="append", choices=tuple(workspace_map()))
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--evidence-root", type=Path,
+                         help="parent directory for a timestamped report (defaults to target/release-qa)")
     parser.add_argument("--require-clean", action="store_true")
     args = parser.parse_args(argv)
     phase = args.phase_option or args.phase
@@ -420,10 +443,15 @@ def main(argv: list[str] | None = None) -> int:
     if platform_name != host_platform():
         parser.error(f"requested platform {platform_name} differs from host {host_platform()}")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    output = (args.output or ROOT / "target" / "release-qa" / f"{timestamp}-{phase}").resolve()
+    evidence_root = (args.evidence_root or Path(os.environ.get(
+        "SOTF_QA_EVIDENCE_ROOT", ROOT / "target" / "release-qa")))
+    output = (args.output or evidence_root / f"{timestamp}-{phase}").resolve()
     output.mkdir(parents=True, exist_ok=False)
     names = args.workspace or list(workspace_map())
     report = {"started_at": timestamp, "phase": phase, "platform": platform_name,
+              "toolchain": toolchain_identity(ROOT), "cargo_net_offline": os.environ.get("CARGO_NET_OFFLINE"),
+              "effective_cargo_home": os.environ.get("CARGO_HOME"),
+              "effective_cargo_target_dir": os.environ.get("CARGO_TARGET_DIR"),
               "status": "RUNNING", "require_clean": args.require_clean,
               "required_workspaces": names, "workspaces": [],
               "release_coverage": {"complete": False, "reason": "single-platform phase evidence; release requires separately verified platform and packaging lanes",

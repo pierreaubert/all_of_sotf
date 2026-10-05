@@ -37,16 +37,19 @@ def clean_group(child: subprocess.Popen[bytes]) -> dict:
 
     def reap_owned_descendants() -> None:
         # Popen retains the direct child's exit status. Reap only adopted
-        # descendants after it has been polled; this runner owns no other jobs.
+        # descendants still present in this owned process group. A broad
+        # waitpid(-1) could steal the exit status of an unrelated child owned
+        # by another helper in the same runner process.
         if not sys.platform.startswith("linux") or child.poll() is None:
             return
-        while True:
+        for member in members(child.pid):
+            pid = int(member["pid"])
+            if pid == child.pid:
+                continue
             try:
-                pid, _ = os.waitpid(-1, os.WNOHANG)
+                os.waitpid(pid, os.WNOHANG)
             except ChildProcessError:
-                return
-            if pid == 0:
-                return
+                continue
 
     for signum in (signal.SIGTERM, signal.SIGKILL):
         try:

@@ -6,8 +6,12 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from types import SimpleNamespace
+import unittest
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
 import qa
@@ -196,6 +200,8 @@ def test_missing_workspace_is_failure(tmp_path):
 
 def test_command_failure_stops_workspace_and_keeps_log(tmp_path, monkeypatch, capsys):
     _, output = fake_workspace(tmp_path, monkeypatch)
+    monkeypatch.setattr(qa, "toolchain_identity",
+                        lambda cwd: {"working_directory": str(cwd), "rustc": "workspace-pinned"})
     monkeypatch.setattr(qa, "commands_for", lambda *_: [
         (sys.executable, "-c", "print('compile failure'); raise SystemExit(7)"),
         (sys.executable, "-c", "raise AssertionError('must not run')"),
@@ -204,6 +210,8 @@ def test_command_failure_stops_workspace_and_keeps_log(tmp_path, monkeypatch, ca
     assert result["status"] == "FAIL"
     assert len(result["commands"]) == 1
     assert result["commands"][0]["exit_code"] == 7
+    assert result["commands"][0]["toolchain"] == {
+        "working_directory": str(tmp_path / "sotf"), "rustc": "workspace-pinned"}
     assert "compile failure" in Path(result["commands"][0]["log"]).read_text()
     assert "compile failure" in capsys.readouterr().out
 
@@ -366,3 +374,51 @@ def test_darwin_host_uses_strict_macos_gate(monkeypatch):
     monkeypatch.setattr(qa.platform, "system", lambda: "Darwin")
     assert qa.host_platform() == "macos"
     assert ("just", "qa-release-evidence") in qa.commands_for("gpui-toolkit", "qa")
+
+
+class ToolchainEvidenceTests(unittest.TestCase):
+    def test_identity_queries_versions_from_workspace_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            calls = []
+
+            def identify(command, **kwargs):
+                calls.append((command[0], kwargs["cwd"]))
+                return SimpleNamespace(stdout=f"{command[0]} workspace version\n")
+
+            with (mock.patch.object(qa.subprocess, "run", side_effect=identify),
+                  mock.patch.object(qa.platform, "platform", return_value="test-platform"),
+                  mock.patch.object(qa.platform, "machine", return_value="test-machine")):
+                identity = qa.toolchain_identity(workspace)
+
+        self.assertEqual(calls, [("rustc", workspace), ("cargo", workspace)])
+        self.assertEqual(identity["working_directory"], str(workspace.resolve()))
+        self.assertEqual(identity["rustc"], "rustc workspace version")
+        self.assertEqual(identity["cargo"], "cargo workspace version")
+
+    def test_workspace_command_records_effective_toolchain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace = root / "sotf"
+            workspace.mkdir()
+            (workspace / "Cargo.toml").write_text("[workspace]\n")
+            (workspace / "Cargo.lock").write_text("lock")
+            output = root / "evidence"
+            output.mkdir()
+            toolchain = {"working_directory": str(workspace.resolve()),
+                         "rustc": "rustc workspace version"}
+            child = mock.Mock(pid=12345)
+            child.wait.return_value = 0
+            child.poll.return_value = 0
+            source = {"sotf": {"revision": "abc123", "dirty": False,
+                               "lock_sha256": "same-lock"}}
+            with (mock.patch.object(qa, "workspace_map", return_value={"sotf": object()}),
+                  mock.patch.object(qa, "source_state", return_value=source),
+                  mock.patch.object(qa, "commands_for", return_value=[("cargo", "check")]),
+                  mock.patch.object(qa, "toolchain_identity", return_value=toolchain),
+                  mock.patch.object(qa.subprocess, "Popen", return_value=child),
+                  mock.patch.object(qa, "clean_group", return_value={"ok": True, "remaining": []})):
+                result = qa.run_workspace("sotf", "check", root, output, False)
+
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["commands"][0]["toolchain"], toolchain)

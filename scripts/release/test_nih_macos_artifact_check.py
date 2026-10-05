@@ -194,7 +194,8 @@ class NativeNihArtifactTests(unittest.TestCase):
                 body = log.read_text()
                 self.assertIn("PARENT TERM", body)
                 self.assertIn("CHILD TERM", body)
-                self.assertTrue(result["command"]["owned_group_cleanup"]["ok"])
+                self.assertTrue(result["command"]["owned_group_cleanup"]["ok"],
+                                result["command"]["owned_group_cleanup"])
                 self.assertEqual(result["command"]["owned_group_cleanup"]["remaining"], [])
                 self.assertEqual(result["command"]["status"], "FAIL")
                 with mock.patch.object(gate.subprocess, "Popen") as spawn:

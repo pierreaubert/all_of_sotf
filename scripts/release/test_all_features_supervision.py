@@ -14,6 +14,19 @@ from scripts.release import all_features_candidate_check as gate
 
 
 class SupervisionTests(unittest.TestCase):
+    def test_run_records_toolchain_for_command_working_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            result_dir = output / "evidence"
+            result_dir.mkdir()
+            expected_cwd = gate.ROOT / "autoeq"
+            with mock.patch.object(gate, "toolchain_identity",
+                                   return_value={"working_directory": str(expected_cwd.resolve()),
+                                                 "rustc": "workspace-pinned"}):
+                result = gate.run("autoeq", [sys.executable, "-c", "pass"], result_dir)
+            self.assertEqual(result["working_directory"], str(expected_cwd.resolve()))
+            self.assertEqual(result["toolchain"]["rustc"], "workspace-pinned")
+
     def test_stop_before_run_does_not_launch(self):
         with tempfile.TemporaryDirectory() as directory, \
              mock.patch.object(gate, "STOP", True), \

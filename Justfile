@@ -1,28 +1,29 @@
-# Aggregate QA runs only on the Gitea macOS and Linux runners.
+# Local aggregate QA records each run outside the source workspaces. Override
+# SOTF_QA_EVIDENCE_ROOT to keep evidence on another local volume.
 default:
     @just --list
 
-_ci_only:
-    @echo 'Aggregate checks run through Gitea Actions. Dispatch the aggregate-qa workflow with phase=metadata|check|tests|qa.' >&2
-    @exit 2
-
-dependencies: _ci_only
-
-check: _ci_only
-
-test: _ci_only
-
-qa: _ci_only
-
-qa-release: _ci_only
-
-# Optional local developer recipes for the six workspaces listed below.
-# Aggregate check, test, and QA recipes above remain Gitea-only.
-
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-workspaces := "autoeq gpui-toolkit math-audio sofa-reader sotf symphonia-add-ons"
+qa_evidence_root := env_var_or_default("SOTF_QA_EVIDENCE_ROOT", "/Volumes/home_tmp/cache/mbx/release-qa")
+export CARGO_NET_OFFLINE := env_var_or_default("CARGO_NET_OFFLINE", "true")
+workspaces := "autoeq gpui-toolkit math-audio sofa-reader sotf sotf-capture sotf-daw sotf-systemwide symphonia-add-ons"
 
+# Aggregate gates run offline by default. Set CARGO_NET_OFFLINE=false only when
+# a developer intentionally allows Cargo to access the network.
+dependencies:
+	SOTF_QA_EVIDENCE_ROOT="{{qa_evidence_root}}" python3 scripts/release/qa.py --phase metadata
+
+check: dependencies
+	SOTF_QA_EVIDENCE_ROOT="{{qa_evidence_root}}" python3 scripts/release/all_features_candidate_check.py --evidence-root "{{qa_evidence_root}}"
+
+test:
+	SOTF_QA_EVIDENCE_ROOT="{{qa_evidence_root}}" python3 scripts/release/qa.py --phase tests
+
+qa: check test
+	SOTF_QA_EVIDENCE_ROOT="{{qa_evidence_root}}" python3 scripts/release/qa.py --phase qa
+
+qa-release: qa
 
 # Show the recipes exposed by each workspace Justfile.
 local-list:
@@ -31,9 +32,10 @@ local-list:
 		just --justfile "$workspace/Justfile" --working-directory "$workspace" --list; \
 	done
 
-# Run the canonical test suite in every workspace. gpui-toolkit names its
-# equivalent full workspace suite `ntest`; the other workspaces use `test`.
-local-test: local-test-autoeq local-test-gpui-toolkit local-test-math-audio local-test-sofa-reader local-test-sotf local-test-symphonia-add-ons
+# Run the canonical test suite in every workspace. gpui-toolkit and sotf-daw
+# name their equivalent full workspace suite `ntest`; sotf-capture has no test
+# recipe, so Cargo runs its complete workspace directly.
+local-test: local-test-autoeq local-test-gpui-toolkit local-test-math-audio local-test-sofa-reader local-test-sotf local-test-sotf-capture local-test-sotf-daw local-test-sotf-systemwide local-test-symphonia-add-ons
 	@echo "All workspace test suites passed."
 
 local-test-autoeq:
@@ -51,12 +53,21 @@ local-test-sofa-reader:
 local-test-sotf:
 	just --justfile sotf/Justfile --working-directory sotf test
 
+local-test-sotf-capture:
+	cargo test --manifest-path sotf-capture/Cargo.toml --workspace --locked
+
+local-test-sotf-daw:
+	just --justfile sotf-daw/Justfile --working-directory sotf-daw ntest
+
+local-test-sotf-systemwide:
+	just --justfile sotf-systemwide/Justfile --working-directory sotf-systemwide test
+
 local-test-symphonia-add-ons:
 	just --justfile symphonia-add-ons/Justfile --working-directory symphonia-add-ons test
 
-# Run each workspace's check recipe. math-audio has no separate check recipe,
-# so use its equivalent Cargo check command directly.
-local-check: local-check-autoeq local-check-gpui-toolkit local-check-math-audio local-check-sofa-reader local-check-sotf local-check-symphonia-add-ons
+# Preserve the per-workspace developer checks alongside the all-feature release
+# check above. math-audio has no separate check recipe.
+local-check: local-check-autoeq local-check-gpui-toolkit local-check-math-audio local-check-sofa-reader local-check-sotf local-check-sotf-capture local-check-sotf-daw local-check-sotf-systemwide local-check-symphonia-add-ons
 	@echo "All workspace checks passed."
 
 local-check-autoeq:
@@ -74,6 +85,15 @@ local-check-sofa-reader:
 local-check-sotf:
 	just --justfile sotf/Justfile --working-directory sotf check
 
+local-check-sotf-capture:
+	just --justfile sotf-capture/Justfile --working-directory sotf-capture check
+
+local-check-sotf-daw:
+	just --justfile sotf-daw/Justfile --working-directory sotf-daw check
+
+local-check-sotf-systemwide:
+	just --justfile sotf-systemwide/Justfile --working-directory sotf-systemwide check
+
 local-check-symphonia-add-ons:
 	just --justfile symphonia-add-ons/Justfile --working-directory symphonia-add-ons check
 
@@ -83,6 +103,9 @@ local-fmt:
 	just --justfile math-audio/Justfile --working-directory math-audio fmt
 	just --justfile sofa-reader/Justfile --working-directory sofa-reader fmt
 	just --justfile sotf/Justfile --working-directory sotf fmt
+	cargo fmt --manifest-path sotf-capture/Cargo.toml --all
+	just --justfile sotf-daw/Justfile --working-directory sotf-daw fmt
+	just --justfile sotf-systemwide/Justfile --working-directory sotf-systemwide fmt
 	just --justfile symphonia-add-ons/Justfile --working-directory symphonia-add-ons fmt
 
 local-fmt-check:
@@ -91,6 +114,9 @@ local-fmt-check:
 	cargo fmt --manifest-path math-audio/Cargo.toml --all -- --check
 	cargo fmt --manifest-path sofa-reader/Cargo.toml -- --check
 	cargo fmt --manifest-path sotf/Cargo.toml --all -- --check
+	cargo fmt --manifest-path sotf-capture/Cargo.toml --all -- --check
+	cargo fmt --manifest-path sotf-daw/Cargo.toml --all -- --check
+	cargo fmt --manifest-path sotf-systemwide/Cargo.toml --all -- --check
 	cargo fmt --manifest-path symphonia-add-ons/Cargo.toml --all -- --check
 
 local-lint:
@@ -99,6 +125,9 @@ local-lint:
 	just --justfile math-audio/Justfile --working-directory math-audio lint
 	just --justfile sofa-reader/Justfile --working-directory sofa-reader clippy
 	just --justfile sotf/Justfile --working-directory sotf lint
+	just --justfile sotf-capture/Justfile --working-directory sotf-capture clippy
+	just --justfile sotf-daw/Justfile --working-directory sotf-daw lint
+	just --justfile sotf-systemwide/Justfile --working-directory sotf-systemwide lint
 	just --justfile symphonia-add-ons/Justfile --working-directory symphonia-add-ons lint
 
 local-build:
@@ -107,6 +136,9 @@ local-build:
 	cargo build --manifest-path math-audio/Cargo.toml --workspace
 	cargo build --manifest-path sofa-reader/Cargo.toml --release
 	cargo build --manifest-path sotf/Cargo.toml --workspace
+	cargo build --manifest-path sotf-capture/Cargo.toml --workspace
+	cargo build --manifest-path sotf-daw/Cargo.toml --workspace
+	cargo build --manifest-path sotf-systemwide/Cargo.toml --workspace
 	cargo build --manifest-path symphonia-add-ons/Cargo.toml --workspace
 
 local-clean:
@@ -115,4 +147,7 @@ local-clean:
 	just --justfile math-audio/Justfile --working-directory math-audio clean
 	just --justfile sofa-reader/Justfile --working-directory sofa-reader clean
 	just --justfile sotf/Justfile --working-directory sotf clean
+	cargo clean --manifest-path sotf-capture/Cargo.toml
+	just --justfile sotf-daw/Justfile --working-directory sotf-daw clean
+	just --justfile sotf-systemwide/Justfile --working-directory sotf-systemwide clean
 	just --justfile symphonia-add-ons/Justfile --working-directory symphonia-add-ons clean

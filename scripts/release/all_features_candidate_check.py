@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
+import argparse
 import ctypes
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import platform
 import signal
 import subprocess
 import sys
@@ -98,14 +101,19 @@ def root_status(pins: dict[str, str]) -> dict:
 def run(name: str, argv: list[str], output: Path, cwd_name: str | None = None) -> dict:
     if STOP:
         raise KeyboardInterrupt("stopped before command launch")
+    command_cwd = ROOT / (cwd_name or name)
     result: dict = {"workspace": name, "argv": argv, "exit_code": None,
-                    "cleanup_ok": False, "owned_pgid": None}
+                    "cleanup_ok": False, "owned_pgid": None,
+                    "working_directory": str(command_cwd.resolve())}
     child: subprocess.Popen | None = None
     with (output / f"{name}.log").open("wb") as log:
         try:
             if STOP:
                 raise KeyboardInterrupt("stopped before process launch")
-            child = subprocess.Popen(argv, cwd=ROOT / (cwd_name or name), stdout=log,
+            result["toolchain"] = toolchain_identity(command_cwd)
+            if STOP:
+                raise KeyboardInterrupt("stopped during toolchain inspection")
+            child = subprocess.Popen(argv, cwd=command_cwd, stdout=log,
                                      stderr=subprocess.STDOUT, start_new_session=True)
             result["owned_pgid"] = child.pid
             (output / "active-command.json").write_text(json.dumps(result, indent=2) + "\n")
@@ -126,16 +134,43 @@ def run(name: str, argv: list[str], output: Path, cwd_name: str | None = None) -
     return result
 
 
-def main() -> int:
+def toolchain_identity(cwd: Path | None = None) -> dict[str, str | None]:
+    identity: dict[str, str | None] = {
+        "platform": platform.platform(), "machine": platform.machine(),
+        "working_directory": str((cwd or Path.cwd()).resolve()),
+    }
+    for name in ("rustc", "cargo"):
+        try:
+            result = subprocess.run([name, "--version"], check=True, capture_output=True,
+                                    text=True, timeout=5, cwd=cwd)
+            identity[name] = result.stdout.strip()
+        except (OSError, subprocess.SubprocessError) as error:
+            identity[name] = f"unavailable: {error}"
+    return identity
+
+
+def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, interrupt)
     signal.signal(signal.SIGINT, interrupt)
-    if len(sys.argv) != 2:
-        print("usage: all_features_candidate_check.py OUTPUT", file=sys.stderr)
-        return 2
-    output = (ROOT / sys.argv[1]).resolve()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("output", nargs="?", help="explicit output directory (legacy positional form)")
+    parser.add_argument("--evidence-root", type=Path,
+                        help="parent directory for a timestamped report (defaults to target/release-qa)")
+    args = parser.parse_args(argv)
+    if args.output and args.evidence_root:
+        parser.error("use either the positional output directory or --evidence-root")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    evidence_root = args.evidence_root or Path(os.environ.get(
+        "SOTF_QA_EVIDENCE_ROOT", ROOT / "target" / "release-qa"))
+    output = (Path(args.output) if args.output else evidence_root / f"{timestamp}-all-features").resolve()
     output.mkdir(parents=True, exist_ok=False)
-    report: dict = {"status": "FAIL", "scope": "nine locked all-feature/all-target checks plus nested AutoEQ demo",
-                    "commands": [], "issues": [], "effective_cargo_home": os.environ.get("CARGO_HOME")}
+    report: dict = {"status": "FAIL", "started_at": timestamp,
+                    "platform": platform.platform(), "machine": platform.machine(),
+                    "toolchain": toolchain_identity(ROOT),
+                    "cargo_net_offline": os.environ.get("CARGO_NET_OFFLINE"),
+                    "scope": "nine locked all-feature/all-target checks plus independent AutoEQ GUI demo",
+                    "commands": [], "issues": [], "effective_cargo_home": os.environ.get("CARGO_HOME"),
+                    "effective_cargo_target_dir": os.environ.get("CARGO_TARGET_DIR")}
     before = None
     root_before = None
     status_before = None
@@ -167,7 +202,8 @@ def main() -> int:
             raise RuntimeError("source preflight failed")
         names = list(workspace_map())
         for name in names:
-            command = ["cargo", "check", "--workspace", "--locked", "--all-targets", "--all-features"]
+            command = ["cargo", "check", "--workspace", "--locked", "--all-targets",
+                       "--all-features", "--keep-going"]
             result = run(name, command, output)
             report["commands"].append(result)
             (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -175,7 +211,7 @@ def main() -> int:
                 report["issues"].append(f"{name}: locked all-feature check failed")
             if not result["cleanup_ok"] or STOP:
                 raise RuntimeError(f"{name}: cleanup incomplete or interrupted")
-        command = ["cargo", "check", "--locked", "--all-targets", "--all-features",
+        command = ["cargo", "check", "--locked", "--all-targets", "--all-features", "--keep-going",
                    "--manifest-path", "crates/autoeq-gpui-examples/Cargo.toml"]
         result = run("autoeq-gpui-examples", command, output, cwd_name="autoeq")
         report["commands"].append(result)
