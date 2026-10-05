@@ -1,0 +1,138 @@
+name: serial_test 4 synchronization regression
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: m4
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CI: 'true'
+      SOTF_MAC_NONHARDWARE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout pinned sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Require pinned toolchain and private QA state
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          ORIGINAL_CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+          ORIGINAL_RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+          case "$ORIGINAL_CARGO_HOME" in /*) ;; *) exit 1 ;; esac
+          case "$ORIGINAL_RUSTUP_HOME" in /*) ;; *) exit 1 ;; esac
+          QA_HOME="$PWD/target/release-gitea/serial-test-4-home"
+          mkdir -p "$QA_HOME/config" "$QA_HOME/cache" "$QA_HOME/runtime" "$QA_HOME/.cargo"
+          chmod 700 "$QA_HOME" "$QA_HOME/runtime"
+          {
+            echo "HOME=$QA_HOME"
+            echo "XDG_CONFIG_HOME=$QA_HOME/config"
+            echo "XDG_CACHE_HOME=$QA_HOME/cache"
+            echo "XDG_RUNTIME_DIR=$QA_HOME/runtime"
+            echo "CARGO_HOME=$ORIGINAL_CARGO_HOME"
+            echo "RUSTUP_HOME=$ORIGINAL_RUSTUP_HOME"
+          } >> "$GITHUB_ENV"
+      - name: Supervision preflight
+        run: |
+          set -euo pipefail
+          python3 -m unittest scripts.release.test_nih_macos_artifact_check scripts.release.test_serial_test_4_check -v 2>&1 | tee serial-test-4-preflight.log
+          grep -Eq '^Ran 11 tests' serial-test-4-preflight.log
+          grep -Eq '^OK$' serial-test-4-preflight.log
+          ! grep -Eq 'skipped|FAIL|ERROR' serial-test-4-preflight.log
+          grep -q 'test_stop_before_launch_does_not_spawn' serial-test-4-preflight.log
+          grep -q 'test_exact_positive_inventory' serial-test-4-preflight.log
+          grep -q 'test_wrong_or_missing_name_fails' serial-test-4-preflight.log
+          grep -q 'test_ignored_and_failure_fail' serial-test-4-preflight.log
+          grep -q 'test_duplicate_and_count_mismatch_fail' serial-test-4-preflight.log
+          grep -q 'test_sigterm_after_both_ready_markers_stops_group_and_next_launch' serial-test-4-preflight.log
+      - name: Check serial_test 4 regressions
+        run: python3 scripts/release/serial_test_4_check.py
+      - name: Retain macOS evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: serial-test-4-macos
+          path: |
+            checkout-sources.log
+            serial-test-4-preflight.log
+            target/release-gitea/serial-test-4/
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      CI: 'true'
+      SOTF_GITEA_DISPOSABLE_RUNNER: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable audio-device-free container
+        run: |
+          set -euo pipefail
+          test -f /.dockerenv
+          test "$(id -u)" -eq 0
+          test ! -e /dev/snd
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang mold cmake ninja-build pkg-config \
+            libssl-dev libasound2-dev libjack-jackd2-dev libclang-dev \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libfontconfig1-dev \
+            libfreetype6-dev libwayland-dev libx11-xcb-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libxcb1-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxrandr-dev libxi-dev \
+            libxcursor-dev libegl1-mesa-dev libgl1-mesa-dev libgl1-mesa-dri
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          test "$(rustc --version | awk '{print $2}')" = 1.99.0
+          python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Checkout pinned sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Supervision preflight
+        run: |
+          set -euo pipefail
+          python3 -m unittest scripts.release.test_nih_native_artifact_check scripts.release.test_serial_test_4_check -v 2>&1 | tee serial-test-4-preflight.log
+          grep -Eq '^Ran 11 tests' serial-test-4-preflight.log
+          grep -Eq '^OK$' serial-test-4-preflight.log
+          ! grep -Eq 'skipped|FAIL|ERROR' serial-test-4-preflight.log
+          grep -q 'test_stop_before_launch_does_not_spawn' serial-test-4-preflight.log
+          grep -q 'test_exact_positive_inventory' serial-test-4-preflight.log
+          grep -q 'test_wrong_or_missing_name_fails' serial-test-4-preflight.log
+          grep -q 'test_ignored_and_failure_fail' serial-test-4-preflight.log
+          grep -q 'test_duplicate_and_count_mismatch_fail' serial-test-4-preflight.log
+          grep -q 'test_sigterm_after_both_ready_markers_stops_group_and_next_launch' serial-test-4-preflight.log
+      - name: Check serial_test 4 regressions
+        run: python3 scripts/release/serial_test_4_check.py
+      - name: Retain Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: serial-test-4-linux
+          path: |
+            checkout-sources.log
+            serial-test-4-preflight.log
+            target/release-gitea/serial-test-4/
+          if-no-files-found: error
