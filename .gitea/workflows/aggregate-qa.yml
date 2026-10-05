@@ -100,7 +100,7 @@ jobs:
           if ! cargo nextest --version >/dev/null 2>&1; then
             cargo install cargo-nextest --version 0.9.143 --locked
           fi
-          test "$(cargo nextest --version | awk '{print $2}')" = 0.9.143
+          test "$(cargo nextest --version | awk 'NR == 1 { print $2 }')" = 0.9.143
           cargo fmt --version
           echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
       - name: Require Python 3.11 or newer
