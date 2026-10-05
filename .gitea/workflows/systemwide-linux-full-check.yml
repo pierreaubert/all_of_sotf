@@ -70,12 +70,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target/release-systemwide-full-preflight
+          python3 -m unittest -v scripts.release.test_generated_roomeq_check \
+            > target/release-systemwide-full-preflight/generated-tests.log 2>&1
+          grep -Eq '^Ran 2 tests in ' target/release-systemwide-full-preflight/generated-tests.log
+          grep -Eq '^OK$' target/release-systemwide-full-preflight/generated-tests.log
+          grep -Fq 'test_stop_before_launch' target/release-systemwide-full-preflight/generated-tests.log
+          grep -Fq 'test_real_signal_stops_ready_parent_and_descendant' \
+            target/release-systemwide-full-preflight/generated-tests.log
           python3 -m unittest -v scripts.release.test_systemwide_linux_full_check \
             > target/release-systemwide-full-preflight/tests.log 2>&1
-          grep -Eq '^Ran 3 tests in ' target/release-systemwide-full-preflight/tests.log
+          grep -Eq '^Ran 4 tests in ' target/release-systemwide-full-preflight/tests.log
           grep -Eq '^OK$' target/release-systemwide-full-preflight/tests.log
+          grep -Fq 'test_generated_receipt_binds_exact_sources_commands_and_artifacts' \
+            target/release-systemwide-full-preflight/tests.log
           ! grep -Eq 'skipped|expected failure|unexpected success' \
             target/release-systemwide-full-preflight/tests.log
+      - name: Generate real RoomEQ artifacts and run the required graph test
+        run: python3 scripts/release/generated_roomeq_check.py
       - name: Run owned systemwide check and qa recipes
         run: python3 scripts/release/systemwide_linux_full_check.py target/release-gitea/systemwide-full-linux
       - name: Upload complete Linux systemwide evidence
@@ -86,5 +97,6 @@ jobs:
           path: |
             checkout-sources.log
             target/release-systemwide-full-preflight/
+            target/release-gitea/generated-roomeq-evidence/
             target/release-gitea/systemwide-full-linux/
-          if-no-files-found: warn
+          if-no-files-found: error
