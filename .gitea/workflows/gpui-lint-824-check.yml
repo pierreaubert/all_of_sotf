@@ -1,0 +1,135 @@
+name: GPUI host lint and 3D/menu positive checks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      CI: 'true'
+      DISPOSABLE: '1'
+      RUSTUP_TOOLCHAIN: 1.99.0
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable Linux GPUI environment
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/gpui-lint-824
+          exec > >(tee target/release-gitea/gpui-lint-824/prerequisite.log) 2>&1
+          test -f /.dockerenv
+          test "$(id -u)" -eq 0
+          test ! -e /dev/snd
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential clang mold cmake ninja-build pkg-config \
+            libssl-dev libasound2-dev libclang-dev libglib2.0-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libfontconfig1-dev libfreetype6-dev libwayland-dev \
+            libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxrandr-dev libxi-dev libxcursor-dev libegl1-mesa-dev libgl1-mesa-dev \
+            libgl1-mesa-dri mesa-vulkan-drivers
+          if ! command -v rustc >/dev/null 2>&1; then
+            curl --fail --location --silent --show-error \
+              https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init \
+              --output /tmp/rustup-init
+            chmod +x /tmp/rustup-init
+            /tmp/rustup-init --default-toolchain 1.99.0 --profile minimal -y --no-modify-path
+          fi
+          export PATH="$CARGO_HOME/bin:$PATH"
+          rustup component add clippy
+          if ! command -v just >/dev/null 2>&1 || [ "$(just --version)" != 'just 1.58.0' ]; then
+            cargo install just --version 1.58.0 --locked --force
+          fi
+          test "$(rustc --version | awk '{print $2}')" = '1.99.0'
+          test "$(just --version)" = 'just 1.58.0'
+          command -v cargo mold
+          cargo clippy --version
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Checkout exact nine sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify owned supervisor and exact test inventory
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_nih_native_artifact_check 2>&1 | tee target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          grep -Fq 'Ran 7 tests in ' target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          grep -Fxq 'OK' target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          python3 -m unittest -v scripts.release.test_gpui_lint_824_check 2>&1 | tee target/release-gitea/gpui-lint-824/inventory-preflight.log
+          grep -Fq 'Ran 4 tests in ' target/release-gitea/gpui-lint-824/inventory-preflight.log
+          grep -Fxq 'OK' target/release-gitea/gpui-lint-824/inventory-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/gpui-lint-824/inventory-preflight.log
+      - name: Lint GPUI host and exercise 3D/menu tests
+        run: |
+          set -euo pipefail
+          export PATH="$CARGO_HOME/bin:$PATH"
+          python3 scripts/release/gpui_lint_824_check.py
+      - name: Upload GPUI lint evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gpui-lint-824-linux
+          path: |
+            checkout-sources.log
+            target/release-gitea/gpui-lint-824/
+          if-no-files-found: error
+  macos:
+    runs-on: m4
+    env:
+      CI: 'true'
+      DISPOSABLE: '1'
+      RUSTUP_TOOLCHAIN: 1.99.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require pinned macOS GPUI prerequisites
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-gitea/gpui-lint-824
+          exec > >(tee target/release-gitea/gpui-lint-824/prerequisite.log) 2>&1
+          test "$(uname -s)" = Darwin
+          test "$(uname -m)" = arm64
+          for tool in rustc cargo just xcodebuild; do command -v "$tool"; done
+          test "$(rustc --version | awk '{print $2}')" = '1.99.0'
+          test "$(just --version)" = 'just 1.58.0'
+          cargo clippy --version
+      - name: Checkout exact nine sibling sources
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Verify owned supervisor and exact test inventory
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v scripts.release.test_nih_macos_artifact_check 2>&1 | tee target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          grep -Fq 'Ran 7 tests in ' target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          grep -Fxq 'OK' target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/gpui-lint-824/supervisor-preflight.log
+          python3 -m unittest -v scripts.release.test_gpui_lint_824_check 2>&1 | tee target/release-gitea/gpui-lint-824/inventory-preflight.log
+          grep -Fq 'Ran 4 tests in ' target/release-gitea/gpui-lint-824/inventory-preflight.log
+          grep -Fxq 'OK' target/release-gitea/gpui-lint-824/inventory-preflight.log
+          ! grep -Eq 'skipped=|expected failures=' target/release-gitea/gpui-lint-824/inventory-preflight.log
+      - name: Lint GPUI host and exercise 3D/menu tests
+        run: |
+          set -euo pipefail
+          python3 scripts/release/gpui_lint_824_check.py
+      - name: Upload GPUI lint evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gpui-lint-824-macos
+          path: |
+            checkout-sources.log
+            target/release-gitea/gpui-lint-824/
+          if-no-files-found: error
