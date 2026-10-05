@@ -10,7 +10,8 @@ case "$group:$platform" in
 esac
 
 root=$(cd "$(dirname "$0")/../.." && pwd) || exit 1
-output="$root/release-artifact-evidence-$group-$platform"
+output="${SOTF_ARTIFACT_EVIDENCE_DIR:-$root/release-artifact-evidence-$group-$platform}"
+[[ $output == /* ]] || { echo 'artifact evidence path must be absolute' >&2; exit 2; }
 mkdir -p "$output/artifacts" "$output/logs" || exit 1
 cp "$root/scripts/release/sources.json" "$output/sources.json" || exit 1
 cd "$root" || exit 1
