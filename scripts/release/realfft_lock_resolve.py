@@ -15,7 +15,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from scripts.release.librespot_candidate_check import clean_group, enable_subreaper
+from scripts.release.process_supervision import clean_group, enable_subreaper
 
 
 FORK_URL = "https://github.com/pierreaubert/realfft.git"
