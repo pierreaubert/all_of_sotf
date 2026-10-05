@@ -2,9 +2,16 @@ name: Focused BandSplit and Hiss low-rate activation check
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Runner platform
+        type: choice
+        options: [all, linux, macos]
+        default: all
 
 jobs:
   linux:
+    if: (inputs.platform || 'all') == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-latest
     env:
       CI: 'true'
@@ -84,6 +91,7 @@ jobs:
             target/release-gitea/band-hiss-low-rate/
           if-no-files-found: error
   macos:
+    if: (inputs.platform || 'all') == 'all' || inputs.platform == 'macos'
     runs-on: m4
     env:
       CI: 'true'
