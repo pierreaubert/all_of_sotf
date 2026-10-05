@@ -3,7 +3,8 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
-evidence="$root/release-artifact-evidence-plugins-linux/validators"
+evidence="${SOTF_ARTIFACT_EVIDENCE_DIR:-$root/release-artifact-evidence-plugins-linux}/validators"
+[[ $evidence == /* ]] || { echo 'validator evidence path must be absolute' >&2; exit 2; }
 mkdir -p "$evidence/downloads" "$evidence/bin"
 
 [[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || {
