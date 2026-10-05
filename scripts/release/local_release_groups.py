@@ -275,6 +275,11 @@ def _snapshot_provenance(root: Path) -> dict[str, object]:
     _server, _owner, pins = read_manifest(manifest_path)
     names = sorted(workspace_map())
     sources = source_state(root, names, host_platform())
+    # version_snapshot adds a wall-clock capture time for standalone QA receipts.
+    # It is not source provenance, so exclude only that volatile field from the
+    # before/after equality check while retaining all source/toolchain/lock data.
+    for source in sources.values():
+        source.pop("captured_at", None)
     issues = source_issues(sources, sources, require_clean=True)
     for name, pinned_revision in pins.items():
         observed = sources.get(name, {}).get("revision")

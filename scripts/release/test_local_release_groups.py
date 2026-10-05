@@ -8,6 +8,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts.release import local_release_groups as groups
@@ -253,6 +254,70 @@ class LocalReleaseGroupsTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "clean, pin-matched"):
                     groups.run_build_only(["macos-arm64"], Path(temporary) / "evidence")
                 toolchain.assert_not_called()
+
+    def test_snapshot_provenance_ignores_capture_time_but_preserves_source_and_lock_changes(self):
+        revision = "a" * 40
+        layout = {"missing": [], "unexpected": [], "tracked_gitlinks": [], "allowed_siblings": []}
+
+        def workspace_state(captured_at: str, *, source_revision: str = revision, lock_hash: str = "lock-a"):
+            return {
+                "sotf": {
+                    "captured_at": captured_at,
+                    "workspace": "sotf",
+                    "revision": source_revision,
+                    "describe": source_revision[:8],
+                    "branch": "release",
+                    "dirty": False,
+                    "platform_label": "macos",
+                    "os": "Darwin",
+                    "os_release": "27.0",
+                    "architecture": "arm64",
+                    "python": "3.13.0",
+                    "rustc": "rustc mock",
+                    "cargo": "cargo mock",
+                    "cargo_nextest": "nextest mock",
+                    "just": "just mock",
+                    "lock_sha256": lock_hash,
+                }
+            }
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest = root / "scripts/release/sources.json"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text("{}\n", encoding="utf-8")
+            root_layout = patch.object(groups, "root_layout_status", return_value=layout)
+            with (
+                patch.object(groups, "read_manifest", return_value=(None, None, {"sotf": revision})),
+                patch.object(groups, "workspace_map", return_value={"sotf": {}}),
+                patch.object(groups, "host_platform", return_value="macos"),
+                root_layout,
+                patch.object(groups, "subprocess") as subprocess_mock,
+                patch.object(
+                    groups,
+                    "source_state",
+                    side_effect=[
+                        workspace_state("first"),
+                        workspace_state("second"),
+                        workspace_state("third", source_revision="b" * 40),
+                        workspace_state("fourth", lock_hash="lock-b"),
+                    ],
+                ),
+            ):
+                subprocess_mock.run.return_value = SimpleNamespace(stdout="root-revision\n")
+                before = groups._snapshot_provenance(root)
+                after = groups._snapshot_provenance(root)
+                self.assertEqual(before, after)
+                revision_changed = groups._snapshot_provenance(root)
+                lock_changed = groups._snapshot_provenance(root)
+
+        self.assertNotEqual(before, revision_changed)
+        self.assertIn("sotf: source revision does not match release pin", revision_changed["issues"])
+        self.assertNotEqual(before["sources"], lock_changed["sources"])
+        self.assertEqual(
+            groups.source_issues(before["sources"], lock_changed["sources"], require_clean=True),
+            ["sotf: Cargo.lock changed"],
+        )
 
     def test_stop_before_toolchain_probe_persists_after_snapshot(self):
         snapshot = clean_snapshot()
