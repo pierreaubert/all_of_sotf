@@ -96,11 +96,15 @@ def root_status(pins: dict[str, str]) -> dict:
 
 
 def run(name: str, argv: list[str], output: Path, cwd_name: str | None = None) -> dict:
+    if STOP:
+        raise KeyboardInterrupt("stopped before command launch")
     result: dict = {"workspace": name, "argv": argv, "exit_code": None,
                     "cleanup_ok": False, "owned_pgid": None}
     child: subprocess.Popen | None = None
     with (output / f"{name}.log").open("wb") as log:
         try:
+            if STOP:
+                raise KeyboardInterrupt("stopped before process launch")
             child = subprocess.Popen(argv, cwd=ROOT / (cwd_name or name), stdout=log,
                                      stderr=subprocess.STDOUT, start_new_session=True)
             result["owned_pgid"] = child.pid
@@ -153,6 +157,10 @@ def main() -> int:
         for name, revision in pins.items():
             if before.get(name, {}).get("revision") != revision:
                 report["issues"].append(f"{name}: source pin mismatch")
+            if not before.get(name, {}).get("lock_sha256"):
+                report["issues"].append(f"{name}: canonical Cargo.lock missing")
+        if not before.get("autoeq", {}).get("nested_lock_sha256"):
+            report["issues"].append("autoeq: nested GPUI examples Cargo.lock missing")
         if status_before["missing"] or status_before["unexpected"]:
             report["issues"].append("root checkout has missing or unexpected paths")
         if report["issues"]:
