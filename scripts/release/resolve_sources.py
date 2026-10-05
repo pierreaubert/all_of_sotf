@@ -39,6 +39,7 @@ AUTOEQ_DEMO = Path("crates/autoeq-gpui-examples")
 TARGETED_UPDATES = {
     "autoeq": (("wgpu", "29.0.4", "29.0.3"), ("naga", "29.0.4", "29.0.3")),
     "sotf-daw": (("naga", "29.0.4", "29.0.3"),),
+    "math-audio": (("fantoccini", "0.22.1", "0.22.1"), ("plotly_static", "0.1.0", "0.1.0"), ("webdriver-downloader", "0.16.4", "0.16.4")),
 }
 
 
