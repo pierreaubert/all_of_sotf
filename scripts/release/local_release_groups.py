@@ -159,7 +159,7 @@ def build_contract() -> dict[str, object]:
                 "deferred": not is_macos,
                 "deferred_reason": (
                     None if is_macos else
-                    "Linux systemwide is outside the mandatory release scope because the daemon falls back to NullDriver and system audio capture is not implemented; native PipeWire support is planned. Daemon builds/tests remain separately available, and no distribution package is required here."
+                    "Linux systemwide is outside the mandatory release scope by explicit deferral. The daemon has cpal input capture and a NullDriver status-only fallback, but Linux system-audio routing and installed-product acceptance are unqualified. Daemon builds/tests remain separately available, and no distribution package is required here."
                 ),
                 "build_only": ([
                     _step(
@@ -233,7 +233,7 @@ def build_contract() -> dict[str, object]:
             "macOS desktop/TUI features follow the current local build orchestrator hal,onnx selection; Linux follows build-linux.sh native defaults (ONNX disabled in its release builder).",
             "RoomEQ uses the existing dist profile and CLI feature. Other AutoEQ binaries are outside the RoomEQ required-artifact mapping.",
             "Plugin Cargo build-only compiles each NIH feature independently in dist profile. Existing plugin packaging recipes use release profile and cannot be substituted as dist qualification.",
-            "Systemwide macOS requires daemon, Swift menu-bar app, and Swift HAL driver payloads. Build-only covers daemon Cargo alone; Swift/package steps are explicitly unavailable pending isolated no-sign outputs. Package filenames and installer host architectures are derived from the actual required payload binaries; the first-target artifact contract uses macos-arm64. Linux systemwide remains deferred because the daemon uses NullDriver and system audio capture is not implemented; PipeWire support is planned. Linux daemon builds/tests remain separately available, but no Linux systemwide distribution package is required or produced here.",
+            "Systemwide macOS requires daemon, Swift menu-bar app, and Swift HAL driver payloads. Build-only covers daemon Cargo alone; Swift/package steps are explicitly unavailable pending isolated no-sign outputs. Package filenames and installer host architectures are derived from the actual required payload binaries; the first-target artifact contract uses macos-arm64. Linux systemwide remains deferred by the release scope; cpal input capture exists, but Linux system-audio routing and installed-product acceptance are unqualified. Linux daemon builds/tests remain separately available, but no Linux systemwide distribution package is required or produced here.",
             "Native macOS artifact qualification remains pending: owned executable minimum versions must not exceed 15.0; older minimum versions on compatible dependency libraries are allowed.",
         ],
     }
