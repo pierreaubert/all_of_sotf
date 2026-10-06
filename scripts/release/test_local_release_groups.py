@@ -101,7 +101,7 @@ class LocalReleaseGroupsTests(unittest.TestCase):
         self.assertTrue(mac_systemwide["required"])
         self.assertEqual([item["label"] for item in mac_systemwide["build_only"]], ["systemwide-daemon-cargo"])
         self.assertIn("macos-arm64.pkg", mac_systemwide["expected_distribution_artifacts"][0])
-        self.assertIn("macos-universal.pkg", mac_systemwide["existing_package_route"])
+        self.assertIn("payload binaries", mac_systemwide["existing_package_route"])
         plugin_route = groups.CONTRACT["targets"]["linux-arm64"]["plugins"]["existing_package_route"]
         self.assertIn("not dist", plugin_route)
 

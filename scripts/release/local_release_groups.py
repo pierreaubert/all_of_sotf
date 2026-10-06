@@ -197,11 +197,11 @@ def build_contract() -> dict[str, object]:
                     ]
                 ),
                 "existing_package_route": (
-                    "sotf-systemwide: just build-systemwide; current output is named macos-universal.pkg although ARM64 universal-binary status is unverified; path builds/adhoc-signs HAL payload"
+                    "sotf-systemwide: just build-systemwide; package filename and host architectures follow all required payload binaries (arm64 for this release); path builds/adhoc-signs HAL payload"
                     if is_macos else None
                 ),
                 "package_gate": (
-                    "pending; expected first-target artifact is macos-arm64.pkg; current route emits macos-universal.pkg and ad-hoc signs HAL payload; build-only includes daemon Cargo only, with Swift app/HAL stages unavailable"
+                    "pending; expected first-target artifact is macos-arm64.pkg; package architecture is derived from required payload binaries; build-only includes daemon Cargo only, with Swift app/HAL stages unavailable"
                     if is_macos else "deferred; Linux systemwide is outside the mandatory release scope and has no ARM64 distribution-package recipe"
                 ),
             },
@@ -233,7 +233,7 @@ def build_contract() -> dict[str, object]:
             "macOS desktop/TUI features follow the current local build orchestrator hal,onnx selection; Linux follows build-linux.sh native defaults (ONNX disabled in its release builder).",
             "RoomEQ uses the existing dist profile and CLI feature. Other AutoEQ binaries are outside the RoomEQ required-artifact mapping.",
             "Plugin Cargo build-only compiles each NIH feature independently in dist profile. Existing plugin packaging recipes use release profile and cannot be substituted as dist qualification.",
-            "Systemwide macOS requires daemon, Swift menu-bar app, and Swift HAL driver payloads. Build-only covers daemon Cargo alone; Swift/package steps are explicitly unavailable pending isolated no-sign outputs. The current pkg filename says macos-universal although ARM64 universal-binary status is unverified; the first-target artifact contract uses macos-arm64. Linux systemwide remains deferred because the daemon uses NullDriver and system audio capture is not implemented; PipeWire support is planned. Linux daemon builds/tests remain separately available, but no Linux systemwide distribution package is required or produced here.",
+            "Systemwide macOS requires daemon, Swift menu-bar app, and Swift HAL driver payloads. Build-only covers daemon Cargo alone; Swift/package steps are explicitly unavailable pending isolated no-sign outputs. Package filenames and installer host architectures are derived from the actual required payload binaries; the first-target artifact contract uses macos-arm64. Linux systemwide remains deferred because the daemon uses NullDriver and system audio capture is not implemented; PipeWire support is planned. Linux daemon builds/tests remain separately available, but no Linux systemwide distribution package is required or produced here.",
             "Native macOS artifact qualification remains pending: owned executable minimum versions must not exceed 15.0; older minimum versions on compatible dependency libraries are allowed.",
         ],
     }
