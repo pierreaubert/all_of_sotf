@@ -122,11 +122,11 @@ class PackageNihArtifactsTests(unittest.TestCase):
         self.assertEqual(receipt["profile"], "dist")
         self.assertEqual(receipt["target_triple"], "aarch64-apple-darwin")
         self.assertEqual(len(receipt["features"]), 43)
-        self.assertEqual(len(receipt["artifact_inventory"]), 129)
+        self.assertEqual(len(receipt["artifact_inventory"]), 352)
         feature = "fletcher-munson"
         base = packer.feature_base(feature)
         display = packer.vst3_name(feature)
-        clap = output / "artifacts/sotf-daw/dist/clap" / f"{base}.clap"
+        clap = output / "artifacts/sotf-daw/dist/clap" / f"{base}.clap/Contents/MacOS/{base}"
         binary = output / "artifacts/sotf-daw/dist/vst3" / f"{display}.vst3/Contents/MacOS/{base}"
         info = binary.parents[1] / "Info.plist"
         self.assertEqual(clap.read_bytes(), binary.read_bytes())
@@ -135,6 +135,11 @@ class PackageNihArtifactsTests(unittest.TestCase):
             / f"plugin-{feature}/libplugins_nih.dylib"
         )
         self.assertEqual(clap.read_bytes(), input_binary.read_bytes())
+        clap_metadata = plistlib.loads((clap.parents[1] / "Info.plist").read_bytes())
+        self.assertEqual(clap_metadata["CFBundleExecutable"], base)
+        self.assertEqual(clap_metadata["CFBundleIdentifier"], f"org.spinorama.sotf.{base}.clap")
+        self.assertEqual(clap_metadata["CFBundlePackageType"], "BNDL")
+        self.assertNotEqual(clap_metadata["CFBundleIdentifier"], f"org.spinorama.sotf.{base}.vst3")
         plist = plistlib.loads(info.read_bytes())
         self.assertEqual(plist["CFBundleExecutable"], base)
         self.assertEqual(plist["CFBundleIdentifier"], f"org.spinorama.sotf.{base}.vst3")
@@ -152,7 +157,7 @@ class PackageNihArtifactsTests(unittest.TestCase):
         receipt_path = self.package("linux-arm64", report, output)
         receipt = json.loads(receipt_path.read_text())
         self.assertEqual(receipt["target_triple"], "aarch64-unknown-linux-gnu")
-        self.assertEqual(len(receipt["artifact_inventory"]), 86)
+        self.assertEqual(len(receipt["artifact_inventory"]), 182)
         feature = "speech-denoiser"
         base = packer.feature_base(feature)
         display = packer.vst3_name(feature)
@@ -161,6 +166,85 @@ class PackageNihArtifactsTests(unittest.TestCase):
                 / "Contents/aarch64-linux" / f"{display}.so")
         self.assertEqual(clap.read_bytes(), vst3.read_bytes())
         packer.assert_elf_architecture(vst3, "aarch64-linux")
+
+    def test_notice_bytes_and_explicit_inventories_match_canonical_sources(self) -> None:
+        for target in ("macos-arm64", "linux-arm64"):
+            with self.subTest(target=target):
+                report = self.make_report(target)
+                output = self.base / target
+                receipt = json.loads(self.package(target, report, output).read_text())
+                physical = {row["path"]: output / row["path"] for row in receipt["artifact_inventory"]}
+                expected_notices = packer.validate_notice_inventory(receipt, target, physical)
+                self.assertEqual(len(expected_notices), 96 if target == "linux-arm64" else 180)
+                self.assertEqual(sum(row["kind"] == "plugin-binary" for row in receipt["artifact_inventory"]), 86)
+                self.assertEqual(sum(row["kind"] == "notice" for row in receipt["artifact_inventory"]), 96 if target == "linux-arm64" else 180)
+                self.assertEqual(len(receipt["features"]), 43)
+                self.assertFalse(receipt["third_party_notices"]["full_clearance"])
+                for item in receipt["third_party_notices"]["files"]:
+                    self.assertEqual((output / item["path"]).read_bytes(), Path(item["source_path"]).read_bytes())
+                shared = output / ("artifacts/sotf-daw/dist/clap-linux" if target == "linux-arm64" else "artifacts/sotf-daw/dist/clap")
+                self.assertEqual(len(list(shared.glob("*.clap"))), 43)
+                self.assertEqual(len(list(shared.rglob("*.clap"))), 43)
+
+    def test_missing_and_empty_notice_sources_reject_before_output_creation(self) -> None:
+        report = self.make_report("macos-arm64")
+        source = self.base / "fixture-notice.txt"
+        specs = ((str(source), packer.NOTICE_SPECS[0][1], None), *packer.NOTICE_SPECS[1:])
+        for empty in (False, True):
+            if empty:
+                source.write_bytes(b"")
+            with self.subTest(empty=empty), mock.patch.object(packer, "NOTICE_SPECS", specs):
+                output = self.base / ("empty-source-output" if empty else "missing-source-output")
+                with self.assertRaisesRegex(ValueError, "notice source is missing or empty"):
+                    self.package("macos-arm64", report, output)
+                self.assertFalse(output.exists())
+
+    def test_notice_copy_failure_removes_partial_package(self) -> None:
+        report = self.make_report("linux-arm64")
+        output = self.base / "copy-failure"
+        original = packer.shutil.copy2
+        source = packer.ROOT / packer.NOTICE_SPECS[0][0]
+        def fail_notice(src, dst):
+            if Path(src) == source:
+                raise OSError("injected notice copy failure")
+            return original(src, dst)
+        with mock.patch.object(packer.shutil, "copy2", side_effect=fail_notice):
+            with self.assertRaisesRegex(OSError, "injected notice copy failure"):
+                self.package("linux-arm64", report, output)
+        self.assertFalse(output.exists())
+
+    def test_notice_source_mutation_during_copy_removes_partial_package(self) -> None:
+        report = self.make_report("macos-arm64")
+        output = self.base / "notice-source-change"
+        source = self.base / "fixture-notice.txt"
+        source.write_bytes(b"original notice")
+        specs = ((str(source), packer.NOTICE_SPECS[0][1], None), *packer.NOTICE_SPECS[1:])
+        original = packer.shutil.copy2
+        def mutate_source(src, dst):
+            result = original(src, dst)
+            if Path(src) == source:
+                source.write_bytes(b"changed notice")
+            return result
+        with mock.patch.object(packer, "NOTICE_SPECS", specs), mock.patch.object(packer.shutil, "copy2", side_effect=mutate_source):
+            with self.assertRaisesRegex(ValueError, "notice source changed"):
+                self.package("macos-arm64", report, output)
+        self.assertFalse(output.exists())
+
+    def test_linux_missing_or_tampered_notice_is_rejected_even_if_inventory_rehashed(self) -> None:
+        report = self.make_report("linux-arm64")
+        output = self.base / "linux-notice-rejection"
+        receipt = json.loads(self.package("linux-arm64", report, output).read_text())
+        files = {row["path"]: output / row["path"] for row in receipt["artifact_inventory"]}
+        row = next(row for row in receipt["artifact_inventory"] if row["kind"] == "notice")
+        path = files[row["path"]]
+        original = path.read_bytes()
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "notice is missing or empty"):
+            packer.validate_notice_inventory(receipt, "linux-arm64", files)
+        path.write_bytes(original + b"tampered")
+        row.update(size=path.stat().st_size, sha256=packer.file_sha256(path))
+        with self.assertRaisesRegex(ValueError, "notice bytes differ from canonical"):
+            packer.validate_notice_inventory(receipt, "linux-arm64", files)
 
     def test_receipt_without_persisted_dist_argv_is_rejected(self) -> None:
         report = self.make_report("macos-arm64")

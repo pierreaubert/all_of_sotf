@@ -158,9 +158,11 @@ def _validate_package(
             raise ValueError(f"symlink found in packed artifact tree: {path}")
         if path.is_file():
             physical_files[str(path.relative_to(package_root))] = path
+    notice_paths = packer.validate_notice_inventory(receipt, "macos-arm64", physical_files)
+    expected_file_count = 172 + len(notice_paths)
     inventory = receipt.get("artifact_inventory")
-    if not isinstance(inventory, list) or len(inventory) != 129:
-        raise ValueError("pack receipt must inventory exactly 129 artifact files")
+    if not isinstance(inventory, list) or len(inventory) != expected_file_count:
+        raise ValueError(f"pack receipt must inventory exactly {expected_file_count} artifact files")
     recorded: dict[str, dict[str, Any]] = {}
     for row in inventory:
         if (not isinstance(row, dict) or not isinstance(row.get("path"), str)
@@ -168,14 +170,15 @@ def _validate_package(
             raise ValueError("pack receipt artifact inventory has an invalid or duplicate path")
         recorded[row["path"]] = row
     if set(recorded) != set(physical_files):
-        raise ValueError("physical packed files do not match the 129-file receipt inventory")
+        raise ValueError("physical packed files do not match the exact plugin/notice receipt inventory")
 
-    expected_paths = set()
+    expected_paths = set(notice_paths)
     for feature in features:
         base = packer.feature_base(feature)
         display = packer.vst3_name(feature)
         expected_paths.update({
-            f"artifacts/sotf-daw/dist/clap/{base}.clap",
+            f"artifacts/sotf-daw/dist/clap/{base}.clap/Contents/MacOS/{base}",
+            f"artifacts/sotf-daw/dist/clap/{base}.clap/Contents/Info.plist",
             f"artifacts/sotf-daw/dist/vst3/{display}.vst3/Contents/MacOS/{base}",
             f"artifacts/sotf-daw/dist/vst3/{display}.vst3/Contents/Info.plist",
         })
@@ -187,19 +190,26 @@ def _validate_package(
         base = packer.feature_base(feature)
         display = packer.vst3_name(feature)
         clap = package_root / "artifacts/sotf-daw/dist/clap" / f"{base}.clap"
+        clap_binary = clap / "Contents/MacOS" / base
+        clap_plist = clap / "Contents/Info.plist"
         bundle = package_root / "artifacts/sotf-daw/dist/vst3" / f"{display}.vst3"
         vst3 = bundle / "Contents/MacOS" / base
         plist_path = bundle / "Contents/Info.plist"
-        for artifact in (clap, vst3, plist_path):
+        for artifact in (clap_binary, clap_plist, vst3, plist_path):
             packer._no_symlink_components(artifact, beneath=package_root)
             if not artifact.is_file() or artifact.stat().st_size == 0:
                 raise ValueError(f"packed artifact is missing or empty: {artifact}")
-        packer.assert_macho_arm64(clap)
+        packer.assert_macho_arm64(clap_binary)
         packer.assert_macho_arm64(vst3)
-        clap_hash = sha256(clap)
+        clap_hash = sha256(clap_binary)
         vst3_hash = sha256(vst3)
         if clap_hash != vst3_hash or clap_hash != built_by_feature[feature]["sha256"]:
             raise ValueError(f"CLAP/VST3 payload does not match its raw build artifact for {feature}")
+        clap_metadata = plistlib.loads(clap_plist.read_bytes())
+        if (clap_metadata.get("CFBundleExecutable") != base
+                or clap_metadata.get("CFBundleIdentifier") != f"org.spinorama.sotf.{base}.clap"
+                or clap_metadata.get("CFBundlePackageType") != "BNDL"):
+            raise ValueError(f"CLAP bundle metadata differs for {feature}")
         plist = plistlib.loads(plist_path.read_bytes())
         if (plist.get("CFBundleExecutable") != base
                 or plist.get("CFBundleIdentifier") != f"org.spinorama.sotf.{base}.vst3"
@@ -207,15 +217,20 @@ def _validate_package(
             raise ValueError(f"VST3 bundle metadata differs for {feature}")
         per_feature_paths[feature] = {
             "clap": clap,
+            "clap_binary": clap_binary,
             "vst3_bundle": bundle,
             "vst3_binary": vst3,
             "payload_sha256": built_by_feature[feature]["sha256"],
         }
 
-    if len(physical_files) != 129:
-        raise ValueError(f"expected 129 physical packed files, found {len(physical_files)}")
+    if len(physical_files) != expected_file_count:
+        raise ValueError(f"expected {expected_file_count} physical packed files, found {len(physical_files)}")
     for relative, path in physical_files.items():
         row = recorded[relative]
+        expected_kind = ("notice" if relative in notice_paths else "bundle-metadata"
+                         if path.name == "Info.plist" else "plugin-binary")
+        if row.get("kind") != expected_kind:
+            raise ValueError(f"packed artifact kind differs from exact layout: {relative}")
         if (row.get("size") != path.stat().st_size or path.stat().st_size == 0
                 or row.get("sha256") != sha256(path)):
             raise ValueError(f"packed artifact hash/size differs from receipt: {relative}")
@@ -237,6 +252,8 @@ def _validate_package(
         "build_report": build_report,
         "features": features,
         "files": physical_files,
+        "notice_paths": notice_paths,
+        "third_party_notices": receipt["third_party_notices"],
         "inventory": recorded,
         "per_feature_paths": per_feature_paths,
     }
@@ -411,7 +428,7 @@ def _validator_commands(
             "feature": feature,
             "format": "clap",
             "path": paths["clap"],
-            "hash_path": paths["clap"],
+            "hash_path": paths["clap_binary"],
             "expected_sha256": paths["payload_sha256"],
             "argv_kind": "clap-validator",
             "argv_suffix": ["validate", str(paths["clap"])],
@@ -616,6 +633,13 @@ def _final_package_check(
         inventory_after.append({"path": relative, "size": current_size, "sha256": current_hash})
         if current_size != row["size"] or current_hash != row["sha256"]:
             errors.append(f"packed input changed during native validation: {relative}")
+    try:
+        packer.validate_notice_inventory(
+            {"third_party_notices": validated["third_party_notices"]},
+            "macos-arm64", validated["files"],
+        )
+    except (OSError, ValueError) as error:
+        errors.append(f"notice provenance or payload changed during native validation: {error}")
     final_hashes: dict[str, Any] = {"artifacts": inventory_after}
     for label, path, expected_hash in (
         ("package_receipt", validated["package_receipt_path"], validated["package_receipt_sha256"]),
@@ -718,11 +742,12 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "name": feature,
                 "payload_sha256": validated["inventory"][
-                    str(validated["per_feature_paths"][feature]["clap"].relative_to(
+                    str(validated["per_feature_paths"][feature]["clap_binary"].relative_to(
                         validated["package_root"]
                     ))
                 ]["sha256"],
                 "clap": str(validated["per_feature_paths"][feature]["clap"]),
+                "clap_binary": str(validated["per_feature_paths"][feature]["clap_binary"]),
                 "vst3_bundle": str(validated["per_feature_paths"][feature]["vst3_bundle"]),
                 "vst3_binary": str(validated["per_feature_paths"][feature]["vst3_binary"]),
             }

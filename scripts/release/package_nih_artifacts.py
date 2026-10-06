@@ -37,6 +37,124 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+
+# These notices cover the built-in NN model and the four fonts embedded by the
+# convolution egui editor. They do not establish full model/Cargo/font clearance.
+NOTICE_SPECS = (
+    ("sotf-daw/assets/third-party/nnnoiseless/MODEL_NOTICES.txt", "nnnoiseless/MODEL_NOTICES.txt", None),
+    ("sotf-daw/assets/third-party/nnnoiseless/nnnoiseless-COPYING.txt", "nnnoiseless/nnnoiseless-COPYING.txt", None),
+    ("sotf-daw/assets/third-party/egui-default-fonts/Hack-Regular.txt", "egui-default-fonts/Hack-Regular.txt", ("convolution",)),
+    ("sotf-daw/assets/third-party/egui-default-fonts/emoji-icon-font-mit-license.txt", "egui-default-fonts/emoji-icon-font-mit-license.txt", ("convolution",)),
+    ("sotf-daw/assets/third-party/egui-default-fonts/OFL.txt", "egui-default-fonts/OFL.txt", ("convolution",)),
+    ("sotf-daw/assets/third-party/egui-default-fonts/UFL.txt", "egui-default-fonts/UFL.txt", ("convolution",)),
+)
+
+
+def notice_sources() -> list[dict[str, Any]]:
+    sources = []
+    for relative, destination, features in NOTICE_SPECS:
+        path = ROOT / relative
+        _no_symlink_components(path)
+        if not path.is_file() or path.stat().st_size == 0:
+            raise ValueError(f"notice source is missing or empty: {path}")
+        sources.append({"source_path": str(path), "path": destination,
+                        "features": list(features) if features is not None else None,
+                        "size": path.stat().st_size, "sha256": file_sha256(path)})
+    return sources
+
+
+def verify_notice_sources(sources: list[dict[str, Any]]) -> None:
+    if notice_sources() != sources:
+        raise ValueError("notice source changed during packaging or validation")
+
+
+def notice_layout(target: str, sources: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    if target not in ("macos-arm64", "linux-arm64"):
+        raise ValueError(f"unsupported notice target: {target}")
+    suffix = "-linux" if target == "linux-arm64" else ""
+    layout = {}
+    for source in sources:
+        shared = f"artifacts/sotf-daw/dist/clap{suffix}/notices/{source['path']}"
+        if target == "linux-arm64":
+            layout[shared] = source
+        for feature in NIH_FEATURES:
+            if source["features"] is not None and feature not in source["features"]:
+                continue
+            destination = (f"artifacts/sotf-daw/dist/vst3{suffix}/{vst3_name(feature)}.vst3/"
+                           f"Contents/Resources/third-party-notices/{source['path']}")
+            layout[destination] = source
+            if target == "macos-arm64":
+                clap_notice = (f"artifacts/sotf-daw/dist/clap/{feature_base(feature)}.clap/"
+                               f"Contents/Resources/third-party-notices/{source['path']}")
+                layout[clap_notice] = source
+    return layout
+
+
+def stage_notices(output_root: Path, target: str, sources: list[dict[str, Any]]) -> None:
+    verify_notice_sources(sources)
+    for relative, source in notice_layout(target, sources).items():
+        destination = output_root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source["source_path"], destination)
+        current_source = Path(source["source_path"])
+        if (current_source.stat().st_size != source["size"]
+                or file_sha256(current_source) != source["sha256"]):
+            raise ValueError("notice source changed during packaging")
+        if (destination.stat().st_size != source["size"]
+                or file_sha256(destination) != source["sha256"]):
+            raise ValueError(f"copied notice bytes differ from source: {destination}")
+    verify_notice_sources(sources)
+
+
+def notice_receipt(target: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+    layout = notice_layout(target, sources)
+    return {
+        "scope": "default NN model plus convolution egui embedded fonts only",
+        "full_clearance": False,
+        "sources": sources,
+        "file_count": len(layout),
+        "files": [{"path": relative, "source_path": source["source_path"],
+                   "sha256": source["sha256"], "size": source["size"]}
+                  for relative, source in sorted(layout.items())],
+    }
+
+
+
+def expected_artifact_paths(target: str, sources: list[dict[str, Any]]) -> set[str]:
+    linux = target == "linux-arm64"
+    suffix = "-linux" if linux else ""
+    expected = set(notice_layout(target, sources))
+    for feature in NIH_FEATURES:
+        base, display = feature_base(feature), vst3_name(feature)
+        clap = f"artifacts/sotf-daw/dist/clap{suffix}/{base}.clap"
+        if linux:
+            expected.add(clap)
+        else:
+            expected.update({f"{clap}/Contents/MacOS/{base}", f"{clap}/Contents/Info.plist"})
+        bundle = f"artifacts/sotf-daw/dist/vst3{suffix}/{display}.vst3/Contents"
+        expected.add(f"{bundle}/aarch64-linux/{display}.so" if linux else f"{bundle}/MacOS/{base}")
+        if not linux:
+            expected.add(f"{bundle}/Info.plist")
+    return expected
+
+
+def validate_notice_inventory(receipt: dict[str, Any], target: str,
+                              physical_files: dict[str, Path]) -> set[str]:
+    sources = notice_sources()
+    expected_receipt = notice_receipt(target, sources)
+    if receipt.get("third_party_notices") != expected_receipt:
+        raise ValueError("pack receipt notice provenance/layout differs from canonical sources")
+    layout = notice_layout(target, sources)
+    for relative, source in layout.items():
+        path = physical_files.get(relative)
+        if path is None or not path.is_file() or path.stat().st_size == 0:
+            raise ValueError(f"packaged notice is missing or empty: {relative}")
+        if path.stat().st_size != source["size"] or file_sha256(path) != source["sha256"]:
+            raise ValueError(f"packaged notice bytes differ from canonical source: {relative}")
+    verify_notice_sources(sources)
+    return set(layout)
+
+
 def feature_base(feature: str) -> str:
     return "sotf_" + feature.replace("-", "_")
 
@@ -320,7 +438,7 @@ def _validate_build_receipt(
 
 
 def _write_artifacts(
-    output_root: Path, target: str, inputs: list[dict[str, Any]]
+    output_root: Path, target: str, inputs: list[dict[str, Any]], sources: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
     linux = target == "linux-arm64"
     suffix = "-linux" if linux else ""
@@ -332,9 +450,21 @@ def _write_artifacts(
     for item in inputs:
         feature = item["feature"]
         base = feature_base(feature)
-        clap = clap_root / f"{base}.clap"
-        shutil.copy2(item["input"], clap)
+        clap_bundle = clap_root / f"{base}.clap"
         display = vst3_name(feature)
+        if linux:
+            clap = clap_bundle
+        else:
+            clap = clap_bundle / "Contents/MacOS" / base
+            clap.parent.mkdir(parents=True)
+            (clap_bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
+                "CFBundleExecutable": base,
+                "CFBundleIdentifier": f"org.spinorama.sotf.{base}.clap",
+                "CFBundleName": display,
+                "CFBundlePackageType": "BNDL",
+                "CFBundleVersion": "1",
+            }, fmt=plistlib.FMT_XML, sort_keys=False))
+        shutil.copy2(item["input"], clap)
         bundle = vst3_root / f"{display}.vst3"
         if linux:
             binary = bundle / "Contents/aarch64-linux" / f"{display}.so"
@@ -355,6 +485,8 @@ def _write_artifacts(
                 "CFBundleVersion": "1",
             }, fmt=plistlib.FMT_XML, sort_keys=False))
 
+    stage_notices(output_root, target, sources)
+    notice_paths = set(notice_layout(target, sources))
     inventory = []
     for path in sorted((output_root / "artifacts").rglob("*")):
         if path.is_file():
@@ -362,10 +494,14 @@ def _write_artifacts(
                 raise ValueError(f"packaged artifact is empty: {path}")
             inventory.append({
                 "path": str(path.relative_to(output_root)),
+                "kind": ("notice" if str(path.relative_to(output_root)) in notice_paths
+                         else "bundle-metadata" if path.name == "Info.plist" else "plugin-binary"),
                 "size": path.stat().st_size,
                 "sha256": file_sha256(path),
             })
-    expected_files = 86 if linux else 129
+    if {row["path"] for row in inventory} != expected_artifact_paths(target, sources):
+        raise ValueError("packed artifact paths differ from the exact plugin/notice layout")
+    expected_files = (86 if linux else 172) + len(notice_paths)
     if len(inventory) != expected_files:
         raise ValueError(f"expected {expected_files} packaged files, found {len(inventory)}")
     return inventory
@@ -381,6 +517,7 @@ def package_from_receipt(input_receipt: Path, target: str, output_dir: Path) -> 
     if _is_within(output_root, source_root):
         raise ValueError("output directory must be outside the source checkout")
     report, inputs, report_hash = _validate_build_receipt(input_receipt, target)
+    sources = notice_sources()
     evidence_root = input_receipt.resolve(strict=True).parent
     if _is_within(output_root, evidence_root) or _is_within(evidence_root, output_root):
         raise ValueError("output directory and input evidence tree must be separate")
@@ -388,13 +525,14 @@ def package_from_receipt(input_receipt: Path, target: str, output_dir: Path) -> 
     output_root.parent.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(exist_ok=False)
     try:
-        inventory = _write_artifacts(output_root, target, inputs)
+        inventory = _write_artifacts(output_root, target, inputs, sources)
         if file_sha256(input_receipt) != report_hash:
             raise ValueError("input build receipt changed during packaging")
         current = _current_provenance(ROOT, target)
         _validate_source_report(report, input_receipt, target, current=current)
         _server, _owner, pins = read_manifest(ROOT / "scripts/release/sources.json")
         target_triple = str(TARGETS[target]["triple"])
+        verify_notice_sources(sources)
         receipt = {
             "schema": SCHEMA,
             "status": "PACKAGED",
@@ -418,6 +556,7 @@ def package_from_receipt(input_receipt: Path, target: str, output_dir: Path) -> 
                 for item in inputs
             ],
             "artifact_inventory": inventory,
+            "third_party_notices": notice_receipt(target, sources),
         }
         receipt_path = output_root / "package-nih-report.json"
         pending = receipt_path.with_suffix(".pending")

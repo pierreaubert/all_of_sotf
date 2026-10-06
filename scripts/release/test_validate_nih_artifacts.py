@@ -111,13 +111,83 @@ class ValidateNihArtifactsTests(unittest.TestCase):
         with mock.patch.object(packer, "_current_provenance", return_value=self.current):
             validated = validator._validate_package(receipt, current=self.current)
         self.assertEqual(len(validated["features"]), 43)
-        self.assertEqual(len(validated["files"]), 129)
+        self.assertEqual(len(validated["files"]), 352)
         self.assertEqual(validated["build_receipt_sha256"],
                          validator.sha256(validated["build_receipt_path"]))
 
+    def test_missing_notice_is_rejected_before_native_command_generation(self) -> None:
+        receipt = self.package()
+        data = json.loads(receipt.read_text())
+        item = data["third_party_notices"]["files"][0]
+        (receipt.parent / item["path"]).unlink()
+        with mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            with self.assertRaisesRegex(ValueError, "notice is missing or empty"):
+                validator._validate_package(receipt, current=self.current)
+
+    def test_tampered_notice_is_rejected_even_when_receipt_inventory_is_rehashed(self) -> None:
+        receipt = self.package()
+        data = json.loads(receipt.read_text())
+        item = data["third_party_notices"]["files"][0]
+        path = receipt.parent / item["path"]
+        path.write_bytes(path.read_bytes() + b"tampered")
+        row = next(row for row in data["artifact_inventory"] if row["path"] == item["path"])
+        row.update(size=path.stat().st_size, sha256=packer.file_sha256(path))
+        receipt.write_text(json.dumps(data))
+        with mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            with self.assertRaisesRegex(ValueError, "notice bytes differ from canonical"):
+                validator._validate_package(receipt, current=self.current)
+
+    def test_notice_provenance_tampering_is_rejected(self) -> None:
+        receipt = self.package()
+        data = json.loads(receipt.read_text())
+        data["third_party_notices"]["full_clearance"] = True
+        receipt.write_text(json.dumps(data))
+        with mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            with self.assertRaisesRegex(ValueError, "notice provenance/layout differs"):
+                validator._validate_package(receipt, current=self.current)
+
+    def test_source_notice_change_after_preflight_is_rejected_by_final_check(self) -> None:
+        source = self.base / "fixture-notice.txt"
+        source.write_bytes(b"original notice")
+        specs = ((str(source), packer.NOTICE_SPECS[0][1], None), *packer.NOTICE_SPECS[1:])
+        with mock.patch.object(packer, "NOTICE_SPECS", specs), mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            receipt = self.package()
+            validated = validator._validate_package(receipt, current=self.current)
+            source.write_bytes(b"changed notice")
+            errors, _, _ = validator._final_package_check(validated)
+        self.assertTrue(any("notice provenance or payload changed" in error for error in errors))
+
+    def test_missing_or_wrong_clap_bundle_metadata_is_rejected(self) -> None:
+        receipt = self.package()
+        metadata = receipt.parent / "artifacts/sotf-daw/dist/clap/sotf_eq.clap/Contents/Info.plist"
+        original = metadata.read_bytes()
+        metadata.unlink()
+        with mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            with self.assertRaisesRegex(ValueError, "physical packed files|paths do not match"):
+                validator._validate_package(receipt, current=self.current)
+        import plistlib
+        changed = plistlib.loads(original)
+        changed["CFBundleExecutable"] = "wrong-executable"
+        metadata.write_bytes(plistlib.dumps(changed))
+        data = json.loads(receipt.read_text())
+        row = next(row for row in data["artifact_inventory"] if row["path"] == str(metadata.relative_to(receipt.parent)))
+        row.update(size=metadata.stat().st_size, sha256=packer.file_sha256(metadata))
+        receipt.write_text(json.dumps(data))
+        with mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            with self.assertRaisesRegex(ValueError, "CLAP bundle metadata differs"):
+                validator._validate_package(receipt, current=self.current)
+
+    def test_clap_binary_at_wrong_bundle_path_is_rejected(self) -> None:
+        receipt = self.package()
+        binary = receipt.parent / "artifacts/sotf-daw/dist/clap/sotf_eq.clap/Contents/MacOS/sotf_eq"
+        binary.rename(binary.with_name("wrong-executable"))
+        with mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            with self.assertRaisesRegex(ValueError, "physical packed files|paths do not match"):
+                validator._validate_package(receipt, current=self.current)
+
     def test_packed_artifact_hash_tamper_is_rejected(self) -> None:
         receipt = self.package()
-        clap = receipt.parent / "artifacts/sotf-daw/dist/clap/sotf_eq.clap"
+        clap = receipt.parent / "artifacts/sotf-daw/dist/clap/sotf_eq.clap/Contents/MacOS/sotf_eq"
         clap.write_bytes(b"tampered")
         with mock.patch.object(packer, "_current_provenance", return_value=self.current):
             with self.assertRaisesRegex(
@@ -129,12 +199,13 @@ class ValidateNihArtifactsTests(unittest.TestCase):
         receipt = self.package()
         with mock.patch.object(packer, "_current_provenance", return_value=self.current):
             validated = validator._validate_package(receipt, current=self.current)
-        clap = receipt.parent / "artifacts/sotf-daw/dist/clap/sotf_eq.clap"
+        clap = receipt.parent / "artifacts/sotf-daw/dist/clap/sotf_eq.clap/Contents/MacOS/sotf_eq"
         clap.write_bytes(b"changed during validation")
-        errors, source_after, final_hashes = validator._final_package_check(validated)
+        with mock.patch.object(packer, "_current_provenance", return_value=self.current):
+            errors, source_after, final_hashes = validator._final_package_check(validated)
         self.assertTrue(any("packed input changed during native validation" in item for item in errors))
         self.assertIsNotNone(source_after)
-        changed = next(row for row in final_hashes["artifacts"] if row["path"].endswith("sotf_eq.clap"))
+        changed = next(row for row in final_hashes["artifacts"] if row["path"] == str(clap.relative_to(receipt.parent)))
         self.assertNotEqual(
             changed["sha256"], validated["inventory"][changed["path"]]["sha256"]
         )
@@ -160,6 +231,12 @@ class ValidateNihArtifactsTests(unittest.TestCase):
         self.assertEqual(len(commands), 86)
         self.assertEqual(sum(item["format"] == "clap" for item in commands), 43)
         self.assertEqual(sum(item["format"] == "vst3" for item in commands), 43)
+        clap_commands = [item for item in commands if item["format"] == "clap"]
+        for item in clap_commands:
+            self.assertTrue(item["path"].is_dir())
+            self.assertEqual(item["path"].suffix, ".clap")
+            self.assertEqual(item["hash_path"], item["path"] / "Contents/MacOS" / packer.feature_base(item["feature"]))
+            self.assertEqual(item["argv_suffix"], ["validate", str(item["path"])])
         vst3_commands = [item for item in commands if item["format"] == "vst3"]
         self.assertEqual({Path(item["path"]).suffix for item in vst3_commands}, {".vst3"})
         for item in vst3_commands:
