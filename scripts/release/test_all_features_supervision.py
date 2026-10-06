@@ -101,6 +101,7 @@ class SupervisionTests(unittest.TestCase):
             except ProcessLookupError:
                 pass
             child.wait()
+            child.stdout.close()
             if libc is not None:
                 self.assertEqual(libc.prctl(36, previous.value, 0, 0, 0), 0)
 
