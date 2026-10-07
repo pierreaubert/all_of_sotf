@@ -1,4 +1,5 @@
 {
+  "vendored_repositories": ["sotf-3rdparties"],
   "repositories": [
     {"name": "autoeq", "path": "autoeq", "primary_language": "Rust", "is_monorepo": false},
     {"name": "gpui-toolkit", "path": "gpui-toolkit", "primary_language": "Rust", "is_monorepo": true},

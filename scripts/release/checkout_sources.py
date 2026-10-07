@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from workspaces import workspace_names
+from workspaces import source_names
 
 REVISION = re.compile(r"[0-9a-f]{40}\Z")
 OWNER = re.compile(r"[A-Za-z0-9_.-]+\Z")
@@ -43,7 +43,7 @@ def read_manifest(path: Path) -> tuple[str, str, dict[str, str]]:
     if not OWNER.fullmatch(owner):
         raise ValueError("invalid manifest owner")
     sources = data.get("sources")
-    names = set(workspace_names())
+    names = set(source_names())
     if not isinstance(sources, dict) or set(sources) != names:
         raise ValueError(f"manifest sources must match inventory: {sorted(names)}")
     revisions: dict[str, str] = {}
@@ -139,7 +139,7 @@ def clone_env(server: str, owner: str) -> dict[str, str]:
 def prepare_destinations(root: Path, revisions: dict[str, str]) -> None:
     """Allow only absent sibling paths or empty directories for exact gitlinks."""
     empty_gitlink_directories = []
-    for name in workspace_names():
+    for name in source_names():
         destination = root / name
         indexed = gitlink_revision(root, name)
         if indexed is not None and indexed != revisions[name]:
@@ -178,7 +178,7 @@ def checkout(root: Path, server: str, owner: str, revisions: dict[str, str]) -> 
     preflight_root(root, revisions)
     prepare_destinations(root, revisions)
     env = clone_env(server, owner)
-    for name in workspace_names():
+    for name in source_names():
         revision = revisions[name]
         destination = root / name
         temporary = Path(tempfile.mkdtemp(prefix=f".{name}-", dir=root))

@@ -10,13 +10,16 @@
       "revision": "dde059e0b4666be2e847cca687dededaf43174b5"
     },
     "math-audio": {
-      "revision": "b4d04d196e226163cf2477bea361d1339f0216fa"
+      "revision": "a852e8d347337bf4edb20bceeb5d8eb1aabc754b"
     },
     "sofa-reader": {
       "revision": "24bb58aba2ef81ce4f45a12488a6ac8a75eb623d"
     },
     "sotf": {
       "revision": "d23dd56cbf020fde38306a540a7da777b9538e8b"
+    },
+    "sotf-3rdparties": {
+      "revision": "bfd07543a9f61040d70f8a1f5aa644fa80c7fb60"
     },
     "sotf-capture": {
       "revision": "e6369512f7e5d5b050af1f25b328545f64f6d7d2"

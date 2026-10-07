@@ -273,7 +273,7 @@ def _host_matches(target: str, system: str, machine: str) -> bool:
 def _snapshot_provenance(root: Path) -> dict[str, object]:
     manifest_path = root / "scripts/release/sources.json"
     _server, _owner, pins = read_manifest(manifest_path)
-    names = sorted(workspace_map())
+    names = sorted(pins)
     sources = source_state(root, names, host_platform())
     # version_snapshot adds a wall-clock capture time for standalone QA receipts.
     # It is not source provenance, so exclude only that volatile field from the

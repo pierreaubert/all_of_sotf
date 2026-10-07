@@ -28,3 +28,6 @@
 [submodule "ms-rust-skill"]
 	path = skills/ms-rust-skill
 	url = https://gitlab.com/lx-industries/ms-rust-skill.git
+[submodule "sotf-3rdparties"]
+	path = sotf-3rdparties
+	url = https://github.com/pierreaubert/sotf-3rdparties

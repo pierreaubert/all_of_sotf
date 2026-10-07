@@ -24,6 +24,7 @@ from ci_matrix import gate_commands, workspace_map
 from version_snapshot import snapshot
 from checkout_sources import read_manifest, root_layout_status
 from process_supervision import clean_group, enable_subreaper
+from workspaces import source_names, vendor_names
 
 STOP = False
 
@@ -92,7 +93,7 @@ def source_state(root: Path, names: list[str], platform_name: str) -> dict:
     states = {}
     for name in names:
         workspace = root / name
-        if not (workspace / "Cargo.toml").is_file():
+        if not workspace.is_dir() or (name not in vendor_names() and not (workspace / "Cargo.toml").is_file()):
             states[name] = {"error": "missing workspace Cargo.toml"}
             continue
         source = snapshot(workspace, platform_name)
@@ -487,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
     root_before = None
     manifest_before = None
     try:
-        report["sources_before"] = source_state(ROOT, list(workspace_map()), platform_name)
+        report["sources_before"] = source_state(ROOT, source_names(), platform_name)
         if args.require_clean:
             manifest = ROOT / "scripts" / "release" / "sources.json"
             manifest_before = manifest.read_bytes()
@@ -526,7 +527,7 @@ def main(argv: list[str] | None = None) -> int:
             report["interrupted"] = True
     finally:
         try:
-            report["sources_after"] = source_state(ROOT, list(workspace_map()), platform_name)
+            report["sources_after"] = source_state(ROOT, source_names(), platform_name)
             report["source_issues"] = source_issues(report.get("sources_before", {}), report["sources_after"], args.require_clean)
             if args.require_clean and root_before is not None:
                 manifest = ROOT / "scripts" / "release" / "sources.json"

@@ -201,7 +201,7 @@ def test_missing_workspace_is_failure(tmp_path):
 def test_command_failure_stops_workspace_and_keeps_log(tmp_path, monkeypatch, capsys):
     _, output = fake_workspace(tmp_path, monkeypatch)
     monkeypatch.setattr(qa, "toolchain_identity",
-                        lambda cwd: {"working_directory": str(cwd), "rustc": "workspace-pinned"})
+                        lambda cwd, env=None: {"working_directory": str(cwd), "rustc": "workspace-pinned"})
     monkeypatch.setattr(qa, "commands_for", lambda *_: [
         (sys.executable, "-c", "print('compile failure'); raise SystemExit(7)"),
         (sys.executable, "-c", "raise AssertionError('must not run')"),
@@ -250,6 +250,16 @@ def test_sibling_change_fails_aggregate_source_guard():
     after = {"sotf": before["sotf"],
              "sotf-daw": {"revision": "b", "dirty": False, "lock_sha256": "3"}}
     assert qa.source_issues(before, after, True) == ["sotf-daw: Cargo.lock changed"]
+
+
+def test_shared_vendor_source_is_guarded_without_root_manifest(tmp_path, monkeypatch):
+    (tmp_path / "sotf-3rdparties").mkdir()
+    monkeypatch.setattr(qa, "snapshot", lambda *args: {"revision": "abc", "dirty": False})
+    before = qa.source_state(tmp_path, ["sotf-3rdparties"], "macos")
+    assert qa.source_issues(before, before, True) == []
+    monkeypatch.setattr(qa, "snapshot", lambda *args: {"revision": "abc", "dirty": True})
+    after = qa.source_state(tmp_path, ["sotf-3rdparties"], "macos")
+    assert qa.source_issues(before, after, True) == ["sotf-3rdparties: source revision or cleanliness changed"]
 
 
 def test_nested_autoeq_lock_is_required_and_guarded(tmp_path, monkeypatch):

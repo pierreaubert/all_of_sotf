@@ -20,5 +20,24 @@ def workspace_names() -> list[str]:
     return names
 
 
+def vendor_names() -> list[str]:
+    """Return source repositories containing shared vendored crates."""
+    names = json.loads(INVENTORY.read_text(encoding="utf-8")).get("vendored_repositories", [])
+    if len(names) != len(set(names)):
+        raise ValueError("duplicate vendored repository paths in inventory")
+    for name in names:
+        if not name or Path(name).name != name or name in {".", ".."}:
+            raise ValueError(f"vendored repository must be a direct child directory: {name!r}")
+    return names
+
+
+def source_names() -> list[str]:
+    """Return all source repositories needed to materialize a release."""
+    names = workspace_names() + vendor_names()
+    if len(names) != len(set(names)):
+        raise ValueError("source repository paths must be unique")
+    return names
+
+
 if __name__ == "__main__":
     print("\n".join(workspace_names()))

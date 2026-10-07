@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from workspaces import workspace_names
+from workspaces import vendor_names, workspace_names
 
 # Smaller layer numbers may depend on larger ones. Same-layer edges are reported.
 LAYERS = {
@@ -24,6 +24,7 @@ LAYERS = {
     "gpui-toolkit": 2, "autoeq": 2,
     "math-audio": 3, "sofa-reader": 3, "symphonia-add-ons": 3,
 }
+SOURCE_LAYERS = {**LAYERS, **{name: 4 for name in vendor_names()}}
 SKIP_DIRS = {".git", "target", "target-static", "venv", ".venv", ".release-venv", "node_modules", "dist", "build", ".muse", ".worktrees", "worktrees", ".evo", "audit", ".docker-target"}
 DEPENDENCY_KEYS = {"dependencies", "dev-dependencies", "build-dependencies"}
 VENDOR_PARTS = {"3rdparties", "vendor"}
@@ -32,7 +33,7 @@ VENDOR_PARTS = {"3rdparties", "vendor"}
 def manifests(root: Path, names: list[str]):
     for owner in names:
         base = root / owner
-        if not (base / "Cargo.toml").is_file():
+        if owner not in vendor_names() and not (base / "Cargo.toml").is_file():
             yield owner, base / "Cargo.toml", None
             continue
         for directory, subdirs, files in os.walk(base):
@@ -120,14 +121,14 @@ def graph_cycles(edges: set[tuple[str, str]]) -> list[list[str]]:
 def audit_manifests(root: Path, names: list[str]) -> tuple[list[dict], list[dict]]:
     findings = []
     vendors = defaultdict(list)
-    known = set(names)
+    known = set(names) | set(vendor_names())
     graph_edges = set()
     for owner, path, doc in manifests(root, names):
         if doc is None:
             findings.append(finding("missing_manifest", "error", workspace=owner, manifest=str(path)))
             continue
         package = doc.get("package")
-        if package and any(part in VENDOR_PARTS for part in path.relative_to(root / owner).parts):
+        if package and (owner in vendor_names() or any(part in VENDOR_PARTS for part in path.relative_to(root / owner).parts)):
             vendors[package.get("name")].append({"version": package.get("version"), "manifest": str(path), "owner": owner})
         for section, dependencies in dependency_tables(doc):
             for alias, raw in dependencies.items():
@@ -154,9 +155,9 @@ def audit_manifests(root: Path, names: list[str]) -> tuple[list[dict], list[dict
                 details = dict(workspace=owner, target=target, manifest=str(path),
                                section=section, dependency=alias, package=value.get("package", alias),
                                source=source, role="source_override" if is_patch else "dependency")
-                if LAYERS[target] < LAYERS[owner]:
+                if SOURCE_LAYERS[target] < SOURCE_LAYERS[owner]:
                     findings.append(finding("upward_dependency", "error", **details))
-                elif LAYERS[target] == LAYERS[owner]:
+                elif SOURCE_LAYERS[target] == SOURCE_LAYERS[owner]:
                     findings.append(finding("same_layer_dependency", "report", **details))
                 if not is_patch:
                     graph_edges.add((owner, target))
@@ -226,10 +227,12 @@ def audit(root: Path, names: list[str] | None = None) -> dict:
     names = names or workspace_names()
     if set(names) != set(LAYERS):
         raise ValueError(f"inventory/layer mismatch: {sorted(set(names) ^ set(LAYERS))}")
-    manifest_findings, vendors = audit_manifests(root, names)
+    vendor_roots = [name for name in vendor_names() if (root / name).is_dir()]
+    manifest_findings, vendors = audit_manifests(root, names + vendor_roots)
     findings = manifest_findings + audit_lockfiles(root, names)
     return {"schema_version": 1, "scope": "static manifests, per-workspace and aggregate lockfile unions",
-            "workspaces": names, "layers": LAYERS, "findings": findings, "vendors": vendors,
+            "workspaces": names, "vendored_repositories": vendor_roots,
+            "layers": SOURCE_LAYERS, "findings": findings, "vendors": vendors,
             "summary": {"errors": sum(item["severity"] == "error" for item in findings),
                         "reports": sum(item["severity"] == "report" for item in findings)}}
 

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from checkout_sources import (checkout, clone_env, git, gitlink_revision,
                               preflight_root, prepare_destinations, read_manifest,
                               root_layout_status)
-from workspaces import workspace_names
+from workspaces import source_names
 
 
 class CheckoutSourcesTests(unittest.TestCase):
@@ -24,15 +24,15 @@ class CheckoutSourcesTests(unittest.TestCase):
             path = Path(directory) / "sources.json"
             data = {
                 "schema": 1, "server": "http://gitea.example:3001", "owner": "pierre",
-                "sources": {name: {"revision": "a" * 40} for name in workspace_names()},
+                "sources": {name: {"revision": "a" * 40} for name in source_names()},
             }
             path.write_text(json.dumps(data), encoding="utf-8")
-            self.assertEqual(set(read_manifest(path)[2]), set(workspace_names()))
-            del data["sources"][workspace_names()[0]]
+            self.assertEqual(set(read_manifest(path)[2]), set(source_names()))
+            del data["sources"][source_names()[0]]
             path.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "match inventory"):
                 read_manifest(path)
-            data["sources"][workspace_names()[0]] = {"revision": "main"}
+            data["sources"][source_names()[0]] = {"revision": "main"}
             path.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "full lowercase Git SHA"):
                 read_manifest(path)
@@ -41,7 +41,7 @@ class CheckoutSourcesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-            revisions = {name: "a" * 40 for name in workspace_names()}
+            revisions = {name: "a" * 40 for name in source_names()}
             for name, revision in revisions.items():
                 subprocess.run(["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
                                 f"160000,{revision},{name}"], check=True)
@@ -57,7 +57,7 @@ class CheckoutSourcesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-            revisions = {name: "a" * 40 for name in workspace_names()}
+            revisions = {name: "a" * 40 for name in source_names()}
             for name, revision in revisions.items():
                 subprocess.run(["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
                                 f"160000,{revision},{name}"], check=True)
@@ -65,7 +65,7 @@ class CheckoutSourcesTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "-c", "user.name=CI", "-c",
                             "user.email=ci@example.invalid", "commit", "-qm", "fixture"], check=True)
             preflight_root(root, revisions)
-            (root / workspace_names()[0]).rmdir()
+            (root / source_names()[0]).rmdir()
             preflight_root(root, revisions)
             (root / "unexpected.txt").write_text("dirty")
             with self.assertRaisesRegex(ValueError, "dirty"):
@@ -75,7 +75,7 @@ class CheckoutSourcesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-            revisions = {name: "a" * 40 for name in workspace_names()}
+            revisions = {name: "a" * 40 for name in source_names()}
             preflight_root(root, revisions)
             (root / "unexpected.txt").write_text("dirty")
             with self.assertRaisesRegex(ValueError, "dirty"):
@@ -85,7 +85,7 @@ class CheckoutSourcesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-            name = workspace_names()[0]
+            name = source_names()[0]
             revision = "a" * 40
             subprocess.run(["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
                             f"160000,{revision},{name}"], check=True)
@@ -93,7 +93,7 @@ class CheckoutSourcesTests(unittest.TestCase):
                             "user.email=ci@example.invalid", "commit", "-qm", "fixture"], check=True)
             self.assertEqual(gitlink_revision(root, name), revision)
             (root / name).mkdir()
-            prepare_destinations(root, {item: revision for item in workspace_names()})
+            prepare_destinations(root, {item: revision for item in source_names()})
             self.assertFalse((root / name).exists())
             self.assertEqual(subprocess.check_output(
                 ["git", "-C", str(root), "status", "--porcelain"], text=True),
@@ -103,7 +103,7 @@ class CheckoutSourcesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-            first, second = workspace_names()[:2]
+            first, second = source_names()[:2]
             revision = "a" * 40
             for name in (first, second):
                 subprocess.run(["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
@@ -111,19 +111,19 @@ class CheckoutSourcesTests(unittest.TestCase):
                 (root / name).mkdir()
             (root / second / "user.txt").write_text("preserve me")
             with self.assertRaisesRegex(ValueError, "already exists"):
-                prepare_destinations(root, {item: revision for item in workspace_names()})
+                prepare_destinations(root, {item: revision for item in source_names()})
             self.assertTrue((root / first).is_dir())
             self.assertTrue((root / second / "user.txt").is_file())
             (root / second / "user.txt").unlink()
             with self.assertRaisesRegex(ValueError, "differs from source manifest"):
-                prepare_destinations(root, {item: "b" * 40 for item in workspace_names()})
+                prepare_destinations(root, {item: "b" * 40 for item in source_names()})
             self.assertTrue((root / first).is_dir())
 
     def test_regular_index_entry_and_symlink_destination_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-            first, second = workspace_names()[:2]
+            first, second = source_names()[:2]
             (root / first).write_text("tracked file")
             subprocess.run(["git", "-C", str(root), "add", first], check=True)
             with self.assertRaisesRegex(ValueError, "not a stage-zero gitlink"):
@@ -132,13 +132,13 @@ class CheckoutSourcesTests(unittest.TestCase):
             (root / first).unlink()
             (root / second).symlink_to(root / ".git", target_is_directory=True)
             with self.assertRaisesRegex(ValueError, "symlink"):
-                prepare_destinations(root, {item: "a" * 40 for item in workspace_names()})
+                prepare_destinations(root, {item: "a" * 40 for item in source_names()})
 
     def test_root_layout_rejects_extra_status_and_mismatched_gitlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-            name = workspace_names()[0]
+            name = source_names()[0]
             revision = "a" * 40
             subprocess.run(["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
                             f"160000,{revision},{name}"], check=True)

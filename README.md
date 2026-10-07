@@ -1,6 +1,7 @@
 # all_of_sotf
 
-This repository is the top-level tree for six related Rust workspaces. The
+This repository is the top-level tree for nine related Rust workspaces and
+the shared `sotf-3rdparties/` vendored dependency repository. The
 workspaces are kept as Git submodules so each project retains its own history,
 Cargo workspace, tests, and release process.
 
@@ -12,6 +13,7 @@ Cargo workspace, tests, and release process.
 | GPUI Toolkit | `gpui-toolkit/` | <https://github.com/pierreaubert/gpui-toolkit> |
 | SOFA Reader | `sofa-reader/` | <https://github.com/pierreaubert/sofa-reader> |
 | Symphonia Add-ons | `symphonia-add-ons/` | <https://github.com/pierreaubert/symphonia-add-ons> |
+| Shared third-party crates | `sotf-3rdparties/` | <https://github.com/pierreaubert/sotf-3rdparties> |
 
 There is no top-level `Cargo.toml`; run Cargo commands from a workspace or
 pass its manifest path explicitly.

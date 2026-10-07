@@ -121,6 +121,26 @@ def test_duplicate_vendor_across_workspaces_fails(tmp_path):
     assert "duplicate_vendor" in codes(graph.audit(root))
 
 
+def test_shared_vendor_repository_is_audited_without_a_root_workspace(tmp_path):
+    root = fixture_root(tmp_path)
+    vendor = root / "sotf-3rdparties" / "rubato"
+    vendor.mkdir(parents=True)
+    (vendor / "Cargo.toml").write_text('[package]\nname = "rubato"\nversion = "5.0.0"\n')
+    (root / "sotf-daw" / "Cargo.toml").write_text(
+        '[package]\nname = "sotf-daw"\nversion = "0.1.0"\n'
+        '[dependencies]\nrubato = { path = "../sotf-3rdparties/rubato" }\n'
+    )
+    report = graph.audit(root)
+    assert report["summary"]["errors"] == 0
+    assert report["vendored_repositories"] == ["sotf-3rdparties"]
+    assert any(copy["owner"] == "sotf-3rdparties"
+               for item in report["vendors"] for copy in item["copies"])
+    duplicate = root / "math-audio" / "crates" / "3rdparties" / "rubato"
+    duplicate.mkdir(parents=True)
+    (duplicate / "Cargo.toml").write_text('[package]\nname = "rubato"\nversion = "5.0.0"\n')
+    assert "duplicate_vendor" in codes(graph.audit(root))
+
+
 def test_target_dependency_and_same_layer_cycle(tmp_path):
     root = fixture_root(tmp_path)
     (root / "sotf" / "Cargo.toml").write_text(
