@@ -1,0 +1,50 @@
+name: Linux release gate
+
+# Phase 6.3 of linux-20261104.md: build the Linux RC in the pinned
+# ubuntu:24.04 builders, then gate the shipped artifacts themselves
+# (CPU/glibc floor, clean-container .deb installs, AppImage
+# execution under Xvfb, dev-driver smoke). Newer-distro recipes
+# stay check-only; their outputs are never shipped (they would
+# raise the glibc floor past Ubuntu 24.04).
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  linux-release-gate:
+    runs-on: x86:linux:host
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require Python 3.11 or newer
+        run: python3 -c 'import sys; print(sys.version); assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+      - name: Checkout pinned sibling repositories
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 scripts/release/checkout_sources.py 2>&1 | tee checkout-sources.log
+      - name: Build sotf-systemwide Linux RC (pinned ubuntu:24.04 builder)
+        run: |
+          set -euo pipefail
+          (cd sotf-systemwide && ./scripts/cross-docker.sh linux-x86)
+      - name: Build sotf Linux RC (deb + AppImage, ubuntu:24.04)
+        run: |
+          set -euo pipefail
+          (cd sotf && just docker-linux-x86-ubuntu-24-04)
+      - name: Run Linux release gate over dist artifacts
+        run: bash scripts/release/linux_release_gate.sh
+      - name: Upload gate evidence
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-release-gate-evidence
+          path: |
+            checkout-sources.log
+            sotf/dist/
+            sotf-systemwide/dist/
+          if-no-files-found: warn
