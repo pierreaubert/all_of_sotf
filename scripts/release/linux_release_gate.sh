@@ -18,11 +18,15 @@
 #   4. `just dev-driver-smoke` on this Linux host, provisioning a
 #      no-sudo PipeWire header sysroot when pkg-config cannot find
 #      libpipewire-0.3.
+#   5. CPU-floor execution smoke: the shipped binaries must start
+#      under `qemu-x86_64 -cpu Nehalem` (SSE4.2, no AVX — the
+#      Apollo Lake floor), complementing the static gate in (1).
 #
 # Usage:
 #   scripts/release/linux_release_gate.sh [--skip-containers]
 #                                         [--skip-appimage]
 #                                         [--skip-dev-driver]
+#                                         [--skip-qemu]
 #
 # Dist directories default to sotf/dist and sotf-systemwide/dist
 # relative to the aggregate root; override with SOTF_DIST_DIRS
@@ -35,11 +39,13 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SKIP_CONTAINERS=false
 SKIP_APPIMAGE=false
 SKIP_DEV_DRIVER=false
+SKIP_QEMU=false
 for arg in "$@"; do
     case "$arg" in
         --skip-containers) SKIP_CONTAINERS=true ;;
         --skip-appimage) SKIP_APPIMAGE=true ;;
         --skip-dev-driver) SKIP_DEV_DRIVER=true ;;
+        --skip-qemu) SKIP_QEMU=true ;;
         *)
             echo "unknown option: $arg" >&2
             exit 2
@@ -61,7 +67,7 @@ for dir in "${DIST_DIRS[@]}"; do
 done
 [ "${#ARTIFACTS[@]}" -gt 0 ] || fail "no .AppImage/.deb/.tar.gz artifacts under: ${DIST_DIRS[*]}"
 
-log "1/4 CPU/glibc floor gate (${#ARTIFACTS[@]} artifacts)"
+log "1/5 CPU/glibc floor gate (${#ARTIFACTS[@]} artifacts)"
 "$ROOT/scripts/check-linux-artifact.sh" "${ARTIFACTS[@]}" \
     || fail "check-linux-artifact.sh rejected an artifact"
 
@@ -75,7 +81,7 @@ for file in "${ARTIFACTS[@]}"; do
 done
 
 if [ "$SKIP_CONTAINERS" = false ]; then
-    log "2/4 .deb install simulation (ubuntu:24.04 + debian:trixie)"
+    log "2/5 .deb install simulation (ubuntu:24.04 + debian:trixie)"
     [ "${#DEBS[@]}" -gt 0 ] || fail "no .deb artifacts to install-check"
     for deb in "${DEBS[@]}"; do
         dpkg-deb --info "$deb" >/dev/null || fail "dpkg-deb --info failed: $deb"
@@ -89,11 +95,11 @@ if [ "$SKIP_CONTAINERS" = false ]; then
         done
     done
 else
-    log "2/4 .deb install simulation skipped"
+    log "2/5 .deb install simulation skipped"
 fi
 
 if [ "$SKIP_APPIMAGE" = false ]; then
-    log "3/4 AppImage execution smoke (Xvfb)"
+    log "3/5 AppImage execution smoke (Xvfb)"
     [ "${#APPIMAGES[@]}" -gt 0 ] || fail "no .AppImage artifacts to smoke-test"
     command -v xvfb-run >/dev/null || fail "xvfb-run is required for the AppImage smoke"
     for app in "${APPIMAGES[@]}"; do
@@ -140,11 +146,11 @@ if [ "$SKIP_APPIMAGE" = false ]; then
         rm -rf "$qa_dir"
     done
 else
-    log "3/4 AppImage execution smoke skipped"
+    log "3/5 AppImage execution smoke skipped"
 fi
 
 if [ "$SKIP_DEV_DRIVER" = false ]; then
-    log "4/4 dev-driver smoke on Linux"
+    log "4/5 dev-driver smoke on Linux"
     if ! pkg-config --exists libpipewire-0.3 2>/dev/null; then
         sysroot="$ROOT/sotf/tmp/pipewire-dev/root"
         if [ ! -f "$sysroot/usr/lib/x86_64-linux-gnu/pkgconfig/libpipewire-0.3.pc" ]; then
@@ -162,7 +168,71 @@ if [ "$SKIP_DEV_DRIVER" = false ]; then
     fi
     (cd "$ROOT/sotf" && just dev-driver-smoke) || fail "dev-driver-smoke failed"
 else
-    log "4/4 dev-driver smoke skipped"
+    log "4/5 dev-driver smoke skipped"
+fi
+
+if [ "$SKIP_QEMU" = false ]; then
+    log "5/5 CPU-floor execution smoke (qemu -cpu Nehalem)"
+    QEMU_BIN="$(command -v qemu-x86_64-static || command -v qemu-x86_64 || true)"
+    if [ -z "$QEMU_BIN" ]; then
+        qemu_root="$ROOT/sotf/tmp/qemu-dev/root"
+        if [ ! -x "$qemu_root/usr/bin/qemu-x86_64-static" ]; then
+            echo "-- provisioning qemu-user-static (no sudo)"
+            mkdir -p "$ROOT/sotf/tmp/qemu-dev/debs" "$qemu_root"
+            (cd "$ROOT/sotf/tmp/qemu-dev/debs" \
+                && apt-get download qemu-user-static >/dev/null 2>&1) \
+                || fail "could not download qemu-user-static"
+            for pkg in "$ROOT"/sotf/tmp/qemu-dev/debs/*.deb; do
+                dpkg-deb -x "$pkg" "$qemu_root"
+            done
+        fi
+        QEMU_BIN="$qemu_root/usr/bin/qemu-x86_64-static"
+    fi
+    # Extract the desktop AppImage once; its binaries run against
+    # the bundled libraries with the AppDir as sysroot.
+    qemu_stage="$(mktemp -d)"
+    desktop_app=""
+    for app in "${APPIMAGES[@]}"; do
+        case "$app" in *sotf-desktop*) desktop_app="$app" ;; esac
+    done
+    [ -n "$desktop_app" ] || fail "no sotf-desktop AppImage for the qemu smoke"
+    (cd "$qemu_stage" && "$desktop_app" --appimage-extract >/dev/null 2>&1) \
+        || fail "could not extract $desktop_app"
+    appdir="$qemu_stage/squashfs-root"
+    for bin in sotf-desktop sotf-tui; do
+        echo "-- qemu Nehalem: $bin --help/--version"
+        timeout 60 "$QEMU_BIN" -cpu Nehalem -L "$appdir" \
+            -E LD_LIBRARY_PATH="$appdir/usr/lib" \
+            "$appdir/usr/bin/$bin" --help >/dev/null 2>&1 \
+            || timeout 60 "$QEMU_BIN" -cpu Nehalem -L "$appdir" \
+                -E LD_LIBRARY_PATH="$appdir/usr/lib" \
+                "$appdir/usr/bin/$bin" --version >/dev/null 2>&1 \
+            || fail "$bin does not start on a Nehalem-class CPU (above the x86-64-v2 floor?)"
+    done
+    # The daemon has no --help exit path; it must start and stay up.
+    daemon_deb=""
+    for deb in "${DEBS[@]}"; do
+        case "$deb" in *systemwide*) daemon_deb="$deb" ;; esac
+    done
+    if [ -n "$daemon_deb" ]; then
+        echo "-- qemu Nehalem: sotf-daemon startup (10s alive check)"
+        dpkg-deb -x "$daemon_deb" "$qemu_stage/daemon"
+        set +e
+        SOTF_SYSTEMWIDE_RUNTIME_DIR="$qemu_stage/daemon-runtime" \
+            timeout 10 "$QEMU_BIN" -cpu Nehalem \
+            "$qemu_stage/daemon/usr/bin/sotf-daemon" \
+            > "$qemu_stage/daemon-qemu.log" 2>&1
+        daemon_status=$?
+        set -e
+        [ "$daemon_status" = 124 ] \
+            || fail "sotf-daemon did not stay up under Nehalem emulation (exit $daemon_status)"
+        grep -qi "illegal instruction" "$qemu_stage/daemon-qemu.log" \
+            && fail "sotf-daemon hit an illegal instruction under Nehalem emulation"
+        echo "   daemon stayed alive until timeout (pass)"
+    fi
+    rm -rf "$qemu_stage"
+else
+    log "5/5 CPU-floor execution smoke skipped"
 fi
 
 log "Linux release gate: all stages passed"
